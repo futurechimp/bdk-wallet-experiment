@@ -1,0 +1,10 @@
+[package]
+name = "bdk-wallet-love"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+bdk_esplora = { version = "0.16.0", features = ["async-https"] }
+bdk_wallet = { version = "1.0.0-beta.1", "features" = ["bip39", "compiler"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
