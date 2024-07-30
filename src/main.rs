@@ -19,12 +19,15 @@ async fn main() -> anyhow::Result<()> {
     dave.sync().await?;
 
     // Create a PSBT with the amount and the address
+    let psbt = dave.transfer(sammy.next_unused_address()?, Amount::from_sat(500))?;
 
-    let psbt = dave.transfer(sammy.next_unused_address()?, Amount::from_sat(5000))?;
-
+    // Broadcast the transaction to send the funds
     let tx = psbt.extract_tx()?;
     dave.broadcast(&tx).await?;
-    tracing::info!("Tx broadcasted! Txid: {}", tx.compute_txid());
+    tracing::info!(
+        "Tx broadcasted! See  https://mutinynet.com/tx/{}",
+        tx.compute_txid()
+    );
 
     Ok(())
 }
