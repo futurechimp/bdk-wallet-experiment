@@ -25,6 +25,7 @@ const ESPLORA_URL: &str = "https://mutinynet.com/api";
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_setup();
+    let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
     let mut conn = rusqlite::Connection::open(DB_PATH)?;
 
     let wallet_opt = Wallet::load()
@@ -46,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let balance = wallet.balance();
     tracing::info!("Wallet balance before syncing: {} sats", balance.total());
 
-    let client = sync(&mut wallet, &mut conn).await?;
+    sync(&mut wallet, &mut conn, &client).await?;
 
     let balance = wallet.balance();
     tracing::info!("Wallet balance after syncing: {} sats", balance.total());
@@ -78,9 +79,9 @@ async fn main() -> anyhow::Result<()> {
 async fn sync(
     wallet: &mut Persisted<Wallet>,
     conn: &mut rusqlite::Connection,
-) -> anyhow::Result<AsyncClient> {
+    client: &AsyncClient,
+) -> anyhow::Result<()> {
     print!("Syncing...");
-    let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
 
     let request = wallet.start_full_scan().inspect_spks_for_all_keychains({
         let mut once = BTreeSet::<KeychainKind>::new();
@@ -102,7 +103,7 @@ async fn sync(
     wallet.apply_update(update)?;
     wallet.persist(conn)?;
 
-    Ok(client)
+    Ok(())
 }
 
 fn tracing_setup() {
