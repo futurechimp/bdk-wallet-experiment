@@ -2,6 +2,7 @@ use bdk_wallet::{
     bitcoin::{Amount, Network},
     Balance, SignOptions,
 };
+use blockchain_client::BlockchainClient;
 use tracing::Level;
 use tracing_subscriber::{filter, fmt, layer::SubscriberExt, Layer, Registry};
 
@@ -19,7 +20,7 @@ mod blockchain_client;
 async fn main() -> anyhow::Result<()> {
     tracing_setup();
 
-    let mut client = blockchain_client::BlockchainClient::new()?;
+    let mut client = BlockchainClient::new()?;
 
     client.get_balance();
 
