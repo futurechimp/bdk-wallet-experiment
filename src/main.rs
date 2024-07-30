@@ -9,6 +9,8 @@ use bdk_wallet::{
     chain::Persisted,
     rusqlite, KeychainKind, SignOptions, Wallet,
 };
+use tracing::Level;
+use tracing_subscriber::{filter, fmt, layer::SubscriberExt, Layer, Registry};
 
 const SEND_AMOUNT: Amount = Amount::from_sat(5000);
 const DB_PATH: &str = "bdk-wallet.sqlite";
@@ -22,6 +24,7 @@ const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_setup();
     let mut conn = rusqlite::Connection::open(DB_PATH)?;
 
     let wallet_opt = Wallet::load()
@@ -38,18 +41,18 @@ async fn main() -> anyhow::Result<()> {
 
     let address = wallet.next_unused_address(KeychainKind::External);
     wallet.persist(&mut conn)?;
-    println!("Next unused address: ({}) {}", address.index, address);
+    tracing::info!("Next unused address: ({}) {}", address.index, address);
 
     let balance = wallet.balance();
-    println!("Wallet balance before syncing: {} sats", balance.total());
+    tracing::info!("Wallet balance before syncing: {} sats", balance.total());
 
     let client = sync(&mut wallet, &mut conn).await?;
 
     let balance = wallet.balance();
-    println!("Wallet balance after syncing: {} sats", balance.total());
+    tracing::info!("Wallet balance after syncing: {} sats", balance.total());
 
     if balance.total() < SEND_AMOUNT {
-        println!(
+        tracing::info!(
             "Please send at least {} sats to the receiving address",
             SEND_AMOUNT
         );
@@ -67,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
 
     let tx = psbt.extract_tx()?;
     client.broadcast(&tx).await?;
-    println!("Tx broadcasted! Txid: {}", tx.compute_txid());
+    tracing::info!("Tx broadcasted! Txid: {}", tx.compute_txid());
 
     Ok(())
 }
@@ -98,6 +101,17 @@ async fn sync(
 
     wallet.apply_update(update)?;
     wallet.persist(conn)?;
-    println!();
+
     Ok(client)
+}
+
+fn tracing_setup() {
+    // show only info level logs and above:
+    let info = filter::LevelFilter::from_level(Level::INFO);
+
+    // set up the tracing subscriber:
+    let subscriber = Registry::default().with(fmt::layer().with_filter(info));
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
+    tracing::info!("Tracing initialized.");
 }
