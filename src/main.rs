@@ -7,7 +7,7 @@ use bdk_esplora::{
 use bdk_wallet::{
     bitcoin::{Amount, Network},
     chain::Persisted,
-    rusqlite, KeychainKind, SignOptions, Wallet,
+    rusqlite, Balance, KeychainKind, SignOptions, Wallet,
 };
 use tracing::Level;
 use tracing_subscriber::{filter, fmt, layer::SubscriberExt, Layer, Registry};
@@ -51,14 +51,7 @@ async fn main() -> anyhow::Result<()> {
 
     let balance = wallet.balance();
     tracing::info!("Wallet balance after syncing: {} sats", balance.total());
-
-    if balance.total() < SEND_AMOUNT {
-        tracing::info!(
-            "Please send at least {} sats to the receiving address",
-            SEND_AMOUNT
-        );
-        std::process::exit(0);
-    }
+    ensure_enough_sats(balance);
 
     let mut tx_builder = wallet.build_tx();
     tx_builder
@@ -76,6 +69,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Sync the local wallet database with the remote Esplora server
 async fn sync(
     wallet: &mut Persisted<Wallet>,
     conn: &mut rusqlite::Connection,
@@ -106,6 +100,19 @@ async fn sync(
     Ok(())
 }
 
+/// Exit the program if the wallet balance is not enough to send the amount
+fn ensure_enough_sats(balance: Balance) {
+    if balance.total() < SEND_AMOUNT {
+        tracing::info!(
+            "Please send at least {} sats to the receiving address",
+            SEND_AMOUNT
+        );
+        std::process::exit(0);
+    }
+}
+
+/// Set up the tracing subscriber, filtering logs to show only
+/// info level logs and above
 fn tracing_setup() {
     // show only info level logs and above:
     let info = filter::LevelFilter::from_level(Level::INFO);
