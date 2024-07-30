@@ -44,13 +44,11 @@ async fn main() -> anyhow::Result<()> {
     wallet.persist(&mut conn)?;
     tracing::info!("Next unused address: ({}) {}", address.index, address);
 
-    let balance = wallet.balance();
-    tracing::info!("Wallet balance before syncing: {} sats", balance.total());
+    get_balance(&wallet);
 
     sync(&mut wallet, &mut conn, &client).await?;
 
-    let balance = wallet.balance();
-    tracing::info!("Wallet balance after syncing: {} sats", balance.total());
+    let balance = get_balance(&wallet);
     ensure_enough_sats(balance);
 
     let mut tx_builder = wallet.build_tx();
@@ -67,6 +65,13 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Tx broadcasted! Txid: {}", tx.compute_txid());
 
     Ok(())
+}
+
+/// Get the wallet balance
+fn get_balance(wallet: &Wallet) -> Balance {
+    let balance = wallet.balance();
+    tracing::info!("Wallet balance after syncing: {} sats", balance.total());
+    balance
 }
 
 /// Sync the local wallet database with the remote Esplora server
