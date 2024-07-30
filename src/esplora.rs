@@ -46,6 +46,7 @@ impl Client {
         })
     }
 
+    #[allow(unused)]
     // Transfer `amount` to `receiver` using this client's wallet
     pub(crate) fn simple_transfer(
         &mut self,
@@ -65,12 +66,14 @@ impl Client {
         Ok(psbt)
     }
 
+    #[allow(unused)]
     pub(crate) async fn broadcast(&self, transaction: &Transaction) -> anyhow::Result<()> {
         tracing::info!("Broadcasting transaction: {:?}", transaction);
         self.client.broadcast(transaction).await?;
         Ok(())
     }
 
+    #[allow(unused)]
     pub(crate) fn next_unused_address(&mut self) -> anyhow::Result<Address> {
         let address = self.wallet.next_unused_address(KeychainKind::External);
         self.wallet.persist(&mut self.conn)?;
