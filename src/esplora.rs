@@ -39,18 +39,6 @@ impl Client {
             .network(NETWORK)
             .create_wallet(&mut conn)?;
 
-        // let wallet_opt = Wallet::load()
-        //     .descriptors(EXTERNAL_DESC, INTERNAL_DESC)
-        //     .network(NETWORK)
-        //     .load_wallet(&mut conn)?;
-
-        // let wallet = match wallet_opt {
-        //     Some(wallet) => wallet,
-        //     None => Wallet::create(EXTERNAL_DESC, INTERNAL_DESC)
-        //         .network(NETWORK)
-        //         .create_wallet(&mut conn)?,
-        // };
-
         Ok(Client {
             conn,
             wallet,
