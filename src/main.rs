@@ -1,13 +1,6 @@
-use std::{collections::BTreeSet, io::Write};
-
-use bdk_esplora::{
-    esplora_client::{self, AsyncClient},
-    EsploraAsyncExt,
-};
 use bdk_wallet::{
     bitcoin::{Amount, Network},
-    chain::Persisted,
-    rusqlite, Balance, KeychainKind, SignOptions, Wallet,
+    Balance, SignOptions,
 };
 use tracing::Level;
 use tracing_subscriber::{filter, fmt, layer::SubscriberExt, Layer, Registry};
@@ -15,92 +8,40 @@ use tracing_subscriber::{filter, fmt, layer::SubscriberExt, Layer, Registry};
 const SEND_AMOUNT: Amount = Amount::from_sat(5000);
 const DB_PATH: &str = "bdk-wallet.sqlite";
 const NETWORK: Network = Network::Signet;
-const STOP_GAP: usize = 5;
-const PARALLEL_REQUESTS: usize = 5;
 
 const EXTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/0/*)";
 const INTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/1/*)";
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
+mod blockchain_client;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_setup();
-    let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
-    let mut conn = rusqlite::Connection::open(DB_PATH)?;
 
-    let wallet_opt = Wallet::load()
-        .descriptors(EXTERNAL_DESC, INTERNAL_DESC)
-        .network(NETWORK)
-        .load_wallet(&mut conn)?;
+    let mut client = blockchain_client::BlockchainClient::new()?;
 
-    let mut wallet = match wallet_opt {
-        Some(wallet) => wallet,
-        None => Wallet::create(EXTERNAL_DESC, INTERNAL_DESC)
-            .network(NETWORK)
-            .create_wallet(&mut conn)?,
-    };
+    client.get_balance();
 
-    let address = wallet.next_unused_address(KeychainKind::External);
-    wallet.persist(&mut conn)?;
-    tracing::info!("Next unused address: ({}) {}", address.index, address);
+    client.sync().await?;
 
-    get_balance(&wallet);
-
-    sync(&mut wallet, &mut conn, &client).await?;
-
-    let balance = get_balance(&wallet);
+    let balance = client.get_balance();
     ensure_enough_sats(balance);
 
-    let mut tx_builder = wallet.build_tx();
+    let address = client.next_unused_address()?;
+
+    let mut tx_builder = client.wallet.build_tx();
     tx_builder
         .add_recipient(address.script_pubkey(), SEND_AMOUNT)
         .enable_rbf();
 
     let mut psbt = tx_builder.finish()?;
-    let finalized = wallet.sign(&mut psbt, SignOptions::default())?;
+    let finalized = client.wallet.sign(&mut psbt, SignOptions::default())?;
     assert!(finalized);
 
     let tx = psbt.extract_tx()?;
     client.broadcast(&tx).await?;
     tracing::info!("Tx broadcasted! Txid: {}", tx.compute_txid());
-
-    Ok(())
-}
-
-/// Get the wallet balance
-fn get_balance(wallet: &Wallet) -> Balance {
-    let balance = wallet.balance();
-    tracing::info!("Wallet balance after syncing: {} sats", balance.total());
-    balance
-}
-
-/// Sync the local wallet database with the remote Esplora server
-async fn sync(
-    wallet: &mut Persisted<Wallet>,
-    conn: &mut rusqlite::Connection,
-    client: &AsyncClient,
-) -> anyhow::Result<()> {
-    print!("Syncing...");
-
-    let request = wallet.start_full_scan().inspect_spks_for_all_keychains({
-        let mut once = BTreeSet::<KeychainKind>::new();
-        move |keychain, spk_i, _| {
-            if once.insert(keychain) {
-                print!("\nScanning keychain [{:?}] ", keychain);
-            }
-            print!(" {:<3}", spk_i);
-            std::io::stdout().flush().expect("must flush")
-        }
-    });
-
-    let mut update = client
-        .full_scan(request, STOP_GAP, PARALLEL_REQUESTS)
-        .await?;
-    let now = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
-    let _ = update.graph_update.update_last_seen_unconfirmed(now);
-
-    wallet.apply_update(update)?;
-    wallet.persist(conn)?;
 
     Ok(())
 }
