@@ -1,8 +1,12 @@
 use std::{collections::BTreeSet, io::Write};
 
-use bdk_esplora::{esplora_client, EsploraAsyncExt};
+use bdk_esplora::{
+    esplora_client::{self, AsyncClient},
+    EsploraAsyncExt,
+};
 use bdk_wallet::{
     bitcoin::{Amount, Network},
+    chain::Persisted,
     rusqlite, KeychainKind, SignOptions, Wallet,
 };
 
@@ -39,29 +43,7 @@ async fn main() -> anyhow::Result<()> {
     let balance = wallet.balance();
     println!("Wallet balance before syncing: {} sats", balance.total());
 
-    print!("Syncing...");
-    let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
-
-    let request = wallet.start_full_scan().inspect_spks_for_all_keychains({
-        let mut once = BTreeSet::<KeychainKind>::new();
-        move |keychain, spk_i, _| {
-            if once.insert(keychain) {
-                print!("\nScanning keychain [{:?}] ", keychain);
-            }
-            print!(" {:<3}", spk_i);
-            std::io::stdout().flush().expect("must flush")
-        }
-    });
-
-    let mut update = client
-        .full_scan(request, STOP_GAP, PARALLEL_REQUESTS)
-        .await?;
-    let now = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
-    let _ = update.graph_update.update_last_seen_unconfirmed(now);
-
-    wallet.apply_update(update)?;
-    wallet.persist(&mut conn)?;
-    println!();
+    let client = sync(&mut wallet, &mut conn).await?;
 
     let balance = wallet.balance();
     println!("Wallet balance after syncing: {} sats", balance.total());
@@ -88,4 +70,34 @@ async fn main() -> anyhow::Result<()> {
     println!("Tx broadcasted! Txid: {}", tx.compute_txid());
 
     Ok(())
+}
+
+async fn sync(
+    wallet: &mut Persisted<Wallet>,
+    conn: &mut rusqlite::Connection,
+) -> anyhow::Result<AsyncClient> {
+    print!("Syncing...");
+    let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
+
+    let request = wallet.start_full_scan().inspect_spks_for_all_keychains({
+        let mut once = BTreeSet::<KeychainKind>::new();
+        move |keychain, spk_i, _| {
+            if once.insert(keychain) {
+                print!("\nScanning keychain [{:?}] ", keychain);
+            }
+            print!(" {:<3}", spk_i);
+            std::io::stdout().flush().expect("must flush")
+        }
+    });
+
+    let mut update = client
+        .full_scan(request, STOP_GAP, PARALLEL_REQUESTS)
+        .await?;
+    let now = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+    let _ = update.graph_update.update_last_seen_unconfirmed(now);
+
+    wallet.apply_update(update)?;
+    wallet.persist(conn)?;
+    println!();
+    Ok(client)
 }
