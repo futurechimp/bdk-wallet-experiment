@@ -104,19 +104,45 @@ new Output({
   network
 }).updatePsbtAsOutput({ psbt, value: inputValue - 1000 });
 ```
-
 To me this looks a lot like psbt updates in Rust, I guess we will find out. The above flow is completely commented in my TypeScript version.
 
-## WTF?
+## At this point, you may be wondering, WTF?
 
-All of this, so far, has happened completely offline: no activity other than the faucet funding has happened on the blockchain. This is spooky: am I funding some construction that was already there on the blockchain? How can the vault work at all if the initial funding transaction was just sent to a normal address? This seems to be the central mystery.
+Take note: all of this, so far, has happened completely offline: no activity other than the faucet funding has happened on the blockchain. This is spooky: am I funding some construction that was already there on the blockchain? How can the vault work at all if the initial funding transaction was just sent to a normal address? This seems to be the central mystery.
 
 ## Success
 
-Lastly, they sign with either unvault key or emergency key, and broadcast the transaction. Depending on which key is used for signing, the transaction may:
+Lastly, the user signs with either unvault key or emergency key, and broadcast the transaction. Depending on which key is used for signing, the transaction may:
 
 1. move immediately to `mkpZhYtJu2r87Js3pDiWJDmPte2NRZ8bJV` if the `emergency_key` was used,
 2. fail at the miner level if the `unvault_key` was used but the timelock for `after` has not been reached, or
 3. move to `tb1q4280xax2lt0u5a5s9hd4easuvzalm8v9ege9ge` if the `unvault_key` was used `after` the timelock
 
-The question in the heading "WTF?" is now the central mystery, even before plowing through the crypto stuff.
+The question in the heading "WTF?" is now the central mystery (or at least it seemed like magic to me).
+
+The answer to the mystery is actually pretty simple. The `wshAddress` is a just a generated, off-chain bitcoin address (in my most recent experiment, it's `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tphv6sz8rwuf`). Initially, there is no transaction relating to it on-chain.
+
+We run the script once, and it asks us to send over some funds from the faucet.
+
+Once we do so, the address has funds in it. Here's the important part: the unlocking conditions *of that address* are *the policy constraints of `wshOutput`. To refresh our memory, that looks like:
+
+```ts
+const wshOutput = new Output({
+  descriptor: wshDescriptor,
+  network,
+  signersPubKeys: [EMERGENCY_RECOVERY ? emergencyPair.publicKey : unvaultKey]
+});
+const wshAddress = wshOutput.getAddress(); // tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tphv6sz8rwuf
+```
+
+Note that the policy descriptor `wshDescriptor` is itself embedded inside `wshOutput`. That descriptor contains the conditions:
+
+```
+or(pk({emergency_key}),and(pk({unvault_key}),after({after}))
+```
+
+with all the values concretely filled in with the proper keys. `signersPubKeys` in the `wshOutput` interface then choose a path *through* the descriptor, by signing using one of the two possible keys: `unvault_key` (subject to timelock) or `emergency_key` (for immediate funds transfer).
+
+Almost all of the work happens offline, and there is no need to "move funds into an account" as would be necessary in account-based systems (if you come from e.g. Ethereum or Cosmos).
+
+Once funds are moved into `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tphv6sz8rwuf`, they can only be moved subject to the policy. Pretty cool!
