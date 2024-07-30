@@ -10,17 +10,19 @@ const SEND_AMOUNT: Amount = Amount::from_sat(5000);
 const DB_PATH: &str = "bdk-wallet.sqlite";
 const NETWORK: Network = Network::Signet;
 
-const EXTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/0/*)";
-const INTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/1/*)";
+// const EXTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/0/*)";
+// const INTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/1/*)";
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
 mod esplora;
+mod keys;
+mod utils;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_setup();
 
-    let mut client = esplora::Client::new()?;
+    let mut client = esplora::Client::new("dave")?;
     client.get_balance();
     client.sync().await?;
 

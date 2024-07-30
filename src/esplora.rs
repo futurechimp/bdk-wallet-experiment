@@ -1,8 +1,10 @@
-use crate::{DB_PATH, ESPLORA_URL, EXTERNAL_DESC, INTERNAL_DESC, NETWORK};
+use crate::{keys, utils, DB_PATH, ESPLORA_URL, NETWORK};
 
 use bdk_esplora::{esplora_client, EsploraAsyncExt};
 use bdk_wallet::bitcoin::{Address, Transaction};
 use bdk_wallet::chain::Persisted;
+use bdk_wallet::keys::ExtendedKey;
+use bdk_wallet::template::Bip84;
 use bdk_wallet::{rusqlite, Balance, KeychainKind, Wallet};
 use std::collections::BTreeSet;
 use std::io::Write;
@@ -18,20 +20,36 @@ pub(crate) struct Client {
 
 impl Client {
     /// Create a new BlockchainClient
-    pub(crate) fn new() -> anyhow::Result<Client> {
+    pub(crate) fn new(name: &str) -> anyhow::Result<Client> {
         let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
         let mut conn = rusqlite::Connection::open(DB_PATH)?;
-        let wallet_opt = Wallet::load()
-            .descriptors(EXTERNAL_DESC, INTERNAL_DESC)
-            .network(NETWORK)
-            .load_wallet(&mut conn)?;
 
-        let wallet = match wallet_opt {
-            Some(wallet) => wallet,
-            None => Wallet::create(EXTERNAL_DESC, INTERNAL_DESC)
-                .network(NETWORK)
-                .create_wallet(&mut conn)?,
-        };
+        let keys_dir = utils::home(name);
+        let xkey: ExtendedKey = keys::load_from_file(&keys_dir)?;
+
+        let xprv = xkey
+            .into_xprv(NETWORK)
+            .expect("couldn't turn xkey into xprv");
+
+        let external_descriptor1 = Bip84(xprv.clone(), KeychainKind::External);
+
+        let internal_descriptor = Bip84(xprv, KeychainKind::Internal);
+
+        let wallet = Wallet::create(external_descriptor1, internal_descriptor)
+            .network(NETWORK)
+            .create_wallet(&mut conn)?;
+
+        // let wallet_opt = Wallet::load()
+        //     .descriptors(EXTERNAL_DESC, INTERNAL_DESC)
+        //     .network(NETWORK)
+        //     .load_wallet(&mut conn)?;
+
+        // let wallet = match wallet_opt {
+        //     Some(wallet) => wallet,
+        //     None => Wallet::create(EXTERNAL_DESC, INTERNAL_DESC)
+        //         .network(NETWORK)
+        //         .create_wallet(&mut conn)?,
+        // };
 
         Ok(Client {
             conn,
