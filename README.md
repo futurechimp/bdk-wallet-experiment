@@ -4,7 +4,7 @@ A quick tryout of the (new-style) BDK wallet, which is the way to use BDK for th
 
 The project is basically a way to try and figure out the process of generating policies + descriptors, extracting them into PSBTS, signing those cooperatively, putting them into the blockchain, and processing them as (semi-retarded) smart contracts.
 
-Because the BDK docs don't really have a full, complex example like this, I'm going to take the TypeScript project over at [Bitcoiner Labs](https://bitcoinerlab.com/guides/miniscript-vault) ([Github](https://github.com/bitcoinerlab/playground/tree/main/descriptors/miniscript) and recreate it in Rust.
+Because the BDK docs don't really have a full, complex example like this, I'm going to take the TypeScript project over at [Bitcoiner Labs](https://bitcoinerlab.com/guides/miniscript-vault) ([Github](https://github.com/bitcoinerlab/playground/tree/main/descriptors/miniscript)) and recreate it in Rust.
 
 
 ## Understanding the basic flow
