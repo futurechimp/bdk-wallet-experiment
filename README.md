@@ -37,7 +37,7 @@ Either:
 1. you present the `emergency_key`, OR
 2. you present the `unvault_key` AND the current block time is greater than the `after` parameter.
 
-The parameters are (I guess) public keys. The text is maddeningly unspecific about exactly what types those are, so it'll be a bit of exploration.
+The parameters are (I guess) public keys. The text is maddeningly unspecific about exactly what types those are, so it'll be a bit of exploration to figure out exact types in Rust.
 
 1. `emergency_key` is a WIF file which they get from an `ECPair.toWIF()`
 1. For `unvault_key`, things devolve into JavaScript underneath the hood of the shiny TypeScript library, but digging a bit it looks like a `PBKDF2-HMAC: RFC 2898 key derivation function` wrapped inside a BIP32 (mnemonic) derivation.
@@ -146,3 +146,17 @@ with all the values concretely filled in with the proper keys. `signersPubKeys` 
 Almost all of the work happens offline, and there is no need to "move funds into an account" as would be necessary in account-based systems (if you come from e.g. Ethereum or Cosmos).
 
 Once funds are moved into `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tphv6sz8rwuf`, they can only be moved subject to the policy. Pretty cool!
+
+## Doing it in Rust
+
+Let's do something similar to the vault idea in Rust. Assume we have two users:
+
+* Dave can barely tie his shoes or make it out of the house without forgetting his keys or losing his wallet mnemonic.
+* Sammy is much more responsible and lives on top of a mountain in Tibet protected by clones of Charlize Theron in Fury Road.
+
+(Basically, we don't care here very much about key generation etc and we've already got the code for that working well in Rust).
+
+So, Dave plays the role of the `unvault_key` guy. He will keep his funds in the vault. He can't unlock funds until vault time expires.
+
+Dave's good buddy Sammy, on the other hand, will be the incorruptible killer monk who holds the `emergency_key`.
+
