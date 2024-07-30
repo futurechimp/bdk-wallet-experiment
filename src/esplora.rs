@@ -13,9 +13,10 @@ const STOP_GAP: usize = 5;
 const PARALLEL_REQUESTS: usize = 5;
 
 pub(crate) struct Client {
-    conn: rusqlite::Connection,
-    pub(crate) wallet: Persisted<Wallet>,
     client: esplora_client::AsyncClient,
+    conn: rusqlite::Connection,
+    name: String,
+    pub(crate) wallet: Persisted<Wallet>,
 }
 
 impl Client {
@@ -40,9 +41,10 @@ impl Client {
             .create_wallet(&mut conn)?;
 
         Ok(Client {
-            conn,
-            wallet,
             client,
+            conn,
+            name: name.to_string(),
+            wallet,
         })
     }
 
@@ -55,6 +57,12 @@ impl Client {
     ) -> anyhow::Result<Psbt> {
         // Sanity check the transfer first
         self.ensure_enough_sats(amount);
+        tracing::info!(
+            "{}: simple transfer of {} sats to {}",
+            self.name,
+            amount,
+            receiver
+        );
 
         let mut tx_builder = self.wallet.build_tx();
         tx_builder
@@ -86,6 +94,12 @@ impl Client {
         let balance = self.wallet.balance();
         tracing::info!("Wallet balance: {} sats", balance.total());
         balance
+    }
+
+    pub(crate) async fn get_current_blockheight(&self) -> anyhow::Result<u32> {
+        let blockheight = self.client.get_height().await?;
+        tracing::info!("Current blockheight: {}", blockheight);
+        Ok(blockheight)
     }
 
     /// Sync the local wallet database with the remote Esplora server
