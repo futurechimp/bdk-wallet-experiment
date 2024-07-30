@@ -2,7 +2,7 @@ use bdk_wallet::{
     bitcoin::{Amount, Network},
     Balance, SignOptions,
 };
-use blockchain_client::EsploraClient;
+
 use tracing::Level;
 use tracing_subscriber::{filter, fmt, layer::SubscriberExt, Layer, Registry};
 
@@ -14,13 +14,13 @@ const EXTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7
 const INTERNAL_DESC: &str = "wpkh(tprv8ZgxMBicQKsPdy6LMhUtFHAgpocR8GC6QmwMSFpZs7h6Eziw3SpThFfczTDh5rW2krkqffa11UpX3XkeTTB2FvzZKWXqPY54Y6Rq4AQ5R8L/84'/1'/0'/1/*)";
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
-mod blockchain_client;
+mod esplora;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_setup();
 
-    let mut client = EsploraClient::new()?;
+    let mut client = esplora::Client::new()?;
     client.get_balance();
     client.sync().await?;
 

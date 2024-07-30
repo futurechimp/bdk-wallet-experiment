@@ -10,15 +10,15 @@ use std::io::Write;
 const STOP_GAP: usize = 5;
 const PARALLEL_REQUESTS: usize = 5;
 
-pub(crate) struct EsploraClient {
+pub(crate) struct Client {
     conn: rusqlite::Connection,
     pub(crate) wallet: Persisted<Wallet>,
     client: esplora_client::AsyncClient,
 }
 
-impl EsploraClient {
+impl Client {
     /// Create a new BlockchainClient
-    pub(crate) fn new() -> anyhow::Result<EsploraClient> {
+    pub(crate) fn new() -> anyhow::Result<Client> {
         let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
         let mut conn = rusqlite::Connection::open(DB_PATH)?;
         let wallet_opt = Wallet::load()
@@ -33,7 +33,7 @@ impl EsploraClient {
                 .create_wallet(&mut conn)?,
         };
 
-        Ok(EsploraClient {
+        Ok(Client {
             conn,
             wallet,
             client,
