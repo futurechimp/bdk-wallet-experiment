@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     dave.sync().await?;
 
     // Create a PSBT with the amount and the address
-    let psbt = dave.transfer(sammy.next_unused_address()?, Amount::from_sat(500))?;
+    let psbt = dave.simple_transfer(sammy.next_unused_address()?, Amount::from_sat(500))?;
 
     // Broadcast the transaction to send the funds
     let tx = psbt.extract_tx()?;

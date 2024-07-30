@@ -47,7 +47,11 @@ impl Client {
     }
 
     // Transfer `amount` to `receiver` using this client's wallet
-    pub(crate) fn transfer(&mut self, receiver: Address, amount: Amount) -> anyhow::Result<Psbt> {
+    pub(crate) fn simple_transfer(
+        &mut self,
+        receiver: Address,
+        amount: Amount,
+    ) -> anyhow::Result<Psbt> {
         // Sanity check the transfer first
         self.ensure_enough_sats(amount);
 
