@@ -40,6 +40,7 @@ impl BlockchainClient {
     }
 
     pub(crate) async fn broadcast(&self, transaction: &Transaction) -> anyhow::Result<()> {
+        tracing::info!("Broadcasting transaction: {:?}", transaction);
         self.client.broadcast(transaction).await?;
         Ok(())
     }
@@ -54,13 +55,13 @@ impl BlockchainClient {
     /// Get the wallet balance
     pub(crate) fn get_balance(&self) -> Balance {
         let balance = self.wallet.balance();
-        tracing::info!("Wallet balance after syncing: {} sats", balance.total());
+        tracing::info!("Wallet balance: {} sats", balance.total());
         balance
     }
 
     /// Sync the local wallet database with the remote Esplora server
     pub(crate) async fn sync(&mut self) -> anyhow::Result<()> {
-        print!("Syncing...");
+        tracing::info!("Syncing...");
 
         let request = self
             .wallet
