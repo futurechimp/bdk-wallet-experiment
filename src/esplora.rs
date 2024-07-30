@@ -1,11 +1,11 @@
 use crate::{keys, utils, DB_PATH, ESPLORA_URL, NETWORK};
 
 use bdk_esplora::{esplora_client, EsploraAsyncExt};
-use bdk_wallet::bitcoin::{Address, Transaction};
+use bdk_wallet::bitcoin::{Address, Amount, Psbt, Transaction};
 use bdk_wallet::chain::Persisted;
 use bdk_wallet::keys::ExtendedKey;
 use bdk_wallet::template::Bip84;
-use bdk_wallet::{rusqlite, Balance, KeychainKind, Wallet};
+use bdk_wallet::{rusqlite, Balance, KeychainKind, SignOptions, Wallet};
 use std::collections::BTreeSet;
 use std::io::Write;
 
@@ -19,7 +19,7 @@ pub(crate) struct Client {
 }
 
 impl Client {
-    /// Create a new BlockchainClient
+    /// Create a new esplora::Client instance
     pub(crate) fn new(name: &str) -> anyhow::Result<Client> {
         let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
         let mut conn = rusqlite::Connection::open(DB_PATH)?;
@@ -44,6 +44,21 @@ impl Client {
             wallet,
             client,
         })
+    }
+
+    // Transfer `amount` to `receiver` using this client's wallet
+    pub(crate) fn transfer(&mut self, receiver: Address, amount: Amount) -> anyhow::Result<Psbt> {
+        // Sanity check the transfer first
+        self.ensure_enough_sats(amount);
+
+        let mut tx_builder = self.wallet.build_tx();
+        tx_builder
+            .add_recipient(receiver.script_pubkey(), amount)
+            .enable_rbf();
+        let mut psbt = tx_builder.finish()?;
+        let finalized = self.wallet.sign(&mut psbt, SignOptions::default())?;
+        assert!(finalized);
+        Ok(psbt)
     }
 
     pub(crate) async fn broadcast(&self, transaction: &Transaction) -> anyhow::Result<()> {
@@ -95,5 +110,16 @@ impl Client {
         self.wallet.persist(&mut self.conn)?;
 
         Ok(())
+    }
+
+    /// Exit the program if the wallet balance is not enough to send the amount
+    fn ensure_enough_sats(&self, amount: Amount) {
+        if self.get_balance().total() < amount {
+            println!(
+                "Please send at least {} sats to the receiving address. Exiting.",
+                amount
+            );
+            std::process::exit(0);
+        }
     }
 }
