@@ -26,24 +26,23 @@ fn generate_extended_key(
 ) -> anyhow::Result<(Xpriv, Xpub)> {
     let mnemonic = Mnemonic::parse(mnemonic_words).unwrap();
 
-    let mnemonic2 = mnemonic.clone();
-
     // Generate the extended key
-    let xkey1: ExtendedKey = mnemonic
+    let xkey: ExtendedKey = mnemonic
         .clone()
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey");
 
-    let xpriv = xkey1
+    let xpriv = xkey
         .into_xprv(network)
         .expect("unable to turn xkey into xpriv");
 
-    // Generate the public key
-    let xkey2: ExtendedKey = mnemonic
+    // Generate the public key, this is a bit gross but it's necessary as xkey
+    // gets consumed immediately on use.
+    let xkey: ExtendedKey = mnemonic
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey");
     let secp = Secp256k1::new();
-    let xpub: Xpub = xkey2
+    let xpub: Xpub = xkey
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey")
         .into_xpub(network, &secp);
