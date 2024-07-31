@@ -23,23 +23,21 @@ mod utils;
 async fn main() -> anyhow::Result<()> {
     utils::tracing_setup();
 
-    let mut dave = esplora::Client::new("dave")?;
-    let sammy = esplora::Client::new("sammy")?;
+    let mut alice = esplora::Client::new("alice")?;
+    let bob = esplora::Client::new("bob")?;
 
-    dave.get_balance();
-    dave.sync().await?;
+    alice.get_balance();
+    alice.sync().await?;
 
-    // We  have two identities, `dave` and `sammy`. Let's go through the steps in the README to work through the vault:
+    // We  have two identities, `alice` and `bob`. Let's go through the steps in the README to work through the vault:
 
     // We need to figure out the `after` parameter at which the vault will expire:
-    let current = dave.get_height().await?;
+    let current = alice.get_height().await?;
     let after = current + AFTER;
 
-    let _secp = bdk_wallet::bitcoin::secp256k1::Secp256k1::new();
-
-    // Dave will be the unvault key, Sammy will be the emergency key.
-    let unvault_key = dave.wallet_public_key;
-    let emergency_key = sammy.wallet_public_key;
+    // Alice will be the unvault key, Bob will be the emergency key.
+    let unvault_key = alice.wallet_public_key;
+    let emergency_key = bob.wallet_public_key;
 
     // Set up the policy: or(pk({@emergency_key}),and(pk({@unvault_key}),after({after})).
     let policy_str = format!("or(pk({emergency_key}),and(pk({unvault_key}),after({after})))");
@@ -60,13 +58,13 @@ async fn main() -> anyhow::Result<()> {
     let vault_address = descriptor.address(NETWORK)?;
     tracing::info!("address: {} ", vault_address);
 
-    // Fund the vault if needed, using the regular Dave wallet and a simple transfer
+    // Fund the vault if needed, using the regular Alice wallet and a simple transfer
     if FUND_THE_VAULT {
-        let mut transfer_psbt = dave.simple_transfer(vault_address, Amount::from_sat(500))?;
+        let mut transfer_psbt = alice.simple_transfer(vault_address, Amount::from_sat(500))?;
         tracing::info!("transfer_psbt: {} ", transfer_psbt);
 
         // Sign the transaction
-        let finalized = dave
+        let finalized = alice
             .wallet
             .sign(&mut transfer_psbt, SignOptions::default())?;
 
@@ -74,21 +72,21 @@ async fn main() -> anyhow::Result<()> {
 
         let transaction = transfer_psbt.extract_tx()?;
         // Broadcast the transaction
-        dave.broadcast(&transaction).await?;
+        alice.broadcast(&transaction).await?;
         tracing::info!(
             "transaction is at: https://mutinynet.com/tx/{} ",
             transaction.compute_txid()
         );
     }
 
-    // Try waiting for the vault to expire, then transfer out again using Dave's wallet
+    // Try waiting for the vault to expire, then transfer out again using Alice's wallet
     // let mut unvault_builder = dave.wallet.build_tx();
     // let key = unvault_builder.add_recipient(
     //     dave.next_unused_address()?.script_pubkey(),
     //     Amount::from_sat(250),
     // );
 
-    // Lastly, go through the process again using Sammy's wallet. He should be able to transfer out of the vault any time he wants.
+    // Lastly, go through the process again using Bob's wallet. He should be able to transfer out of the vault any time he wants.
 
     Ok(())
 }

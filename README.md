@@ -13,7 +13,7 @@ The Bitcoiner Labs tutorial makes a very simple *Bitcoin vault*.
 
 Funds are locked into the vault address, and they can't be moved until after a timelock. If the user becomes concerned that maybe somebody has stolen their regular mnemonic, the idea is that they have another "emergency key" in another country (perhaps stored with Grandma) and they can fly there and *immediately* access funds.
 
-This will serve to demo a complex policy, descriptor, and singing process, and there's a working TypeScript example to work from so I can see all the steps.
+This will serve to demo a complex policy, descriptor, and signing process, and there's a working TypeScript example to work from so I can see everything working.
 
 Breaking things down, the steps are as follows.
 
@@ -37,17 +37,17 @@ Either:
 1. you present the `emergency_key`, OR
 2. you present the `unvault_key` AND the current block time is greater than the `after` parameter.
 
-The parameters are (I guess) public keys. The text is maddeningly unspecific about exactly what types those are, so it'll be a bit of exploration to figure out exact types in Rust.
+The key parameters are public keys. The text is maddeningly unspecific about exactly what types those are, so it'll be a bit of exploration to figure out exact types in Rust.
 
 1. `emergency_key` is a WIF file which they get from an `ECPair.toWIF()`
 1. For `unvault_key`, things devolve into JavaScript underneath the hood of the shiny TypeScript library, but digging a bit it looks like a `PBKDF2-HMAC: RFC 2898 key derivation function` wrapped inside a BIP32 (mnemonic) derivation.
 1. The `after` parameter is an absolute block number. They construct by retrieving the current block and then specifying it as a number of blocks past the current block.
 
-Ok, seems doable.
+Ok, seems doable. Let's explore the code.
 
 So we have two keys, a block number afte which funds can be unvaulted, and an abstract policy. What happens next?
 
-They do a mutable string replace to sub the `after` parameter into the policy, compile the policy (without the keys in place) and check if the policy is sane (very interesting).
+They do a mutable string replace to sub the `after` parameter into the policy, compile the policy (without the keys in place) and check if the policy is sane.
 
 Only after sanity checking the policy do they take the miniscript of the compiled policy and turn it into a `wsh` **descriptor**, subbing in the keys:
 
@@ -65,7 +65,7 @@ const wshDescriptor = `wsh(${miniscript
   .replace('@emergencyKey', emergencyPair.publicKey.toString('hex'))})`;
 ```
 
-At this point, they've got a `wshDescriptor` string. This is where things depart quite strongly from the Rust equivalent.
+At this point, they've got a `wshDescriptor` string. This is where I suspect things will depart quite strongly from the Rust equivalent.
 
 They create an `Output` interface, which I guess is a UTXO output:
 
@@ -86,7 +86,7 @@ const wshAddress = wshOutput.getAddress();
 
 Fund the address with a straight-up faucet transfer (nothing fancy). Once you fund the `wshAddress`, and let Bitcoin catch up, you run the program again. This gets you into the vault code path. It's a little convoluted but there are quite a few moving parts.
 
-Once we're in the funded path, we
+Once we're in the funded path, we:
 
 1. retrieve the first UTXO id and value of the funding transaction
 2. set up a brand new PSBT, locked to the correct network (in their case, testnet). Let's call this the input PSBT.
@@ -151,12 +151,11 @@ Once funds are moved into `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tph
 
 Let's do something similar to the vault idea in Rust. Assume we have two users:
 
-* Dave can barely tie his shoes or make it out of the house without forgetting his keys or losing his wallet mnemonic.
-* Sammy is much more responsible and lives on top of a mountain in Tibet protected by clones of Charlize Theron in Fury Road.
+* Alice worries a lot about having her keys stolen.
+* Bob is a Buddhist saint livingin on a mountain top in Tibet protected by clones of Charlize Theron as Furiosa in Mad Max: Fury Road.
 
 (Basically, we don't care here very much about key generation etc and we've already got the code for that working well in Rust).
 
-So, Dave plays the role of the `unvault_key` guy. He will keep his funds in the vault. He can't unlock funds until vault time expires.
+So, Alice plays the role of the `unvault_key` guy. She will keep her funds in the vault. She can't unlock funds until vault time expires.
 
-Dave's good buddy Sammy, on the other hand, will be the incorruptible killer monk who holds the `emergency_key`.
-
+Alice's good buddy Sammy, on the other hand, will be the incorruptible and well-protected Tibetan monk who holds the `emergency_key`.
