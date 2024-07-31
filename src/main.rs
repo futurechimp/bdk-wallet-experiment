@@ -14,6 +14,7 @@ const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
 const AFTER: u32 = 5; // 2 minutes when using mutiny
 const FUND_THE_VAULT: bool = false;
+const UNVAULT: bool = true;
 
 mod esplora;
 mod keys;
@@ -26,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
     let mut alice = esplora::Client::new("alice")?;
     let bob = esplora::Client::new("bob")?;
 
-    alice.get_balance();
+    alice.balance();
     alice.sync().await?;
 
     // We  have two identities, `alice` and `bob`. Let's go through the steps in the README to work through the vault:
@@ -35,8 +36,10 @@ async fn main() -> anyhow::Result<()> {
     let current = alice.get_height().await?;
     let after = current + AFTER;
 
-    // Alice will be the unvault key, Bob will be the emergency key.
+    // Alice will be the unvault key
     let unvault_key = alice.wallet_public_key;
+
+    // Bob will be the emergency key.
     let emergency_key = bob.wallet_public_key;
 
     // Set up the policy: or(pk({@emergency_key}),and(pk({@unvault_key}),after({after})).
@@ -47,18 +50,19 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("policy: {} ", policy); // we never get here
 
     // Create the vault descriptor: `wsh(or(pk({emergency_key}),and(pk({unvault_key}),after({after})))`.
-    let descriptor = miniscript::Descriptor::new_wsh(policy.compile()?)?;
-    descriptor
+    let vault_descriptor = miniscript::Descriptor::new_wsh(policy.compile()?)?;
+    vault_descriptor
         .sanity_check()
         .expect("failed descriptor sanity check");
 
-    tracing::info!("descriptor: {} ", descriptor);
+    tracing::info!("descriptor: {} ", vault_descriptor);
 
     // Grab the vault address from the descriptor
-    let vault_address = descriptor.address(NETWORK)?;
+    let vault_address = vault_descriptor.address(NETWORK)?;
     tracing::info!("address: {} ", vault_address);
 
-    // Fund the vault if needed, using the regular Alice wallet and a simple transfer
+    // Fund the vault if needed, using the regular Alice wallet and a simple transfer.
+    // This constant is set up at the top of the file
     if FUND_THE_VAULT {
         let mut transfer_psbt = alice.simple_transfer(vault_address, Amount::from_sat(500))?;
         tracing::info!("transfer_psbt: {} ", transfer_psbt);
@@ -79,14 +83,15 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    // Try waiting for the vault to expire, then transfer out again using Alice's wallet
-    // let mut unvault_builder = dave.wallet.build_tx();
-    // let key = unvault_builder.add_recipient(
-    //     dave.next_unused_address()?.script_pubkey(),
-    //     Amount::from_sat(250),
-    // );
-
-    // Lastly, go through the process again using Bob's wallet. He should be able to transfer out of the vault any time he wants.
+    // This constant is set up at the top of the file
+    if UNVAULT {
+        // Alice is going to try to transfer the coins out using the unvault key.
+        // This will fail if the timelock has not yet expired.
+        // I assume I need to create a wallet here using the `vault_descriptor`?
+    } else {
+        // Bob is going to try and immediately use his emergency key and transfer
+        // I assume I need to create a wallet here using the `vault_descriptor`?
+    }
 
     Ok(())
 }

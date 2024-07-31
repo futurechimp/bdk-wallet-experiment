@@ -86,7 +86,7 @@ impl Client {
     }
 
     /// Get the wallet balance
-    pub(crate) fn get_balance(&self) -> Balance {
+    pub(crate) fn balance(&self) -> Balance {
         let balance = self.wallet.balance();
         tracing::info!("Wallet balance: {} sats", balance.total());
         balance
@@ -131,7 +131,7 @@ impl Client {
 
     /// Exit the program if the wallet balance is not enough to send the amount
     fn ensure_enough_sats(&self, amount: Amount) {
-        if self.get_balance().total() < amount {
+        if self.balance().total() < amount {
             println!(
                 "Please send at least {} sats to the receiving address. Exiting.",
                 amount
