@@ -27,7 +27,6 @@ fn generate_extended_key(
         .clone()
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey");
-
     let xpriv = xkey
         .into_xprv(network)
         .expect("unable to turn xkey into xpriv");
