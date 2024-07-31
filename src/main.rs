@@ -49,15 +49,13 @@ async fn main() -> anyhow::Result<()> {
     // Alice will be the unvault key
     let unvault_key = alice.wallet_public_key;
 
-    // Bob will be the emergency key.
+    // Bob will be the emergency key
     let emergency_key = bob.wallet_public_key;
 
     // Set up the policy: or(pk({@emergency_key}),and(pk({@unvault_key}),after({after})).
     let policy_str = format!("or(pk({emergency_key}),and(pk({unvault_key}),after({after})))");
-    tracing::info!("policy_str: {} ", policy_str);
-
     let policy = Concrete::<PublicKey>::from_str(&policy_str)?;
-    tracing::info!("policy: {} ", policy); // we never get here
+    tracing::info!("policy: {} ", policy);
 
     // Create the vault descriptor: `wsh(or(pk({emergency_key}),and(pk({unvault_key}),after({after})))`.
     let vault_descriptor = miniscript::Descriptor::new_wsh(policy.compile()?)?;
@@ -65,11 +63,11 @@ async fn main() -> anyhow::Result<()> {
         .sanity_check()
         .expect("failed descriptor sanity check");
 
-    tracing::info!("descriptor: {} ", vault_descriptor);
+    tracing::info!("vault descriptor: {} ", vault_descriptor);
 
     // Grab the vault address from the descriptor
     let vault_address = vault_descriptor.address(NETWORK)?;
-    tracing::info!("address: {} ", vault_address);
+    tracing::info!("vault address: {} ", vault_address);
 
     // Fund the vault if needed, using the regular Alice wallet and a simple transfer.
     // This constant is set up at the top of the file
