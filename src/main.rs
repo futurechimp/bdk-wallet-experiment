@@ -8,6 +8,8 @@ const DB_PATH: &str = "bdk-wallet.sqlite";
 const NETWORK: Network = Network::Signet;
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
+const AFTER: u32 = 5; // 2 minutes when using mutiny
+
 mod esplora;
 mod keys;
 mod utils;
@@ -17,21 +19,16 @@ async fn main() -> anyhow::Result<()> {
     utils::tracing_setup();
 
     let mut dave = esplora::Client::new("dave")?;
-    // let mut sammy = esplora::Client::new("sammy")?;
+    let sammy = esplora::Client::new("sammy")?;
 
     dave.get_balance();
     dave.sync().await?;
 
-    // Create a PSBT with the amount and the address
-    // let psbt = dave.simple_transfer(sammy.next_unused_address()?, Amount::from_sat(500))?;
+    // We  have two identities, `dave` and `sammy`. Let's go through the steps in the README to work through the vault:
 
-    // Broadcast the transaction to send the funds
-    // let tx = psbt.extract_tx()?;
-    // dave.broadcast(&tx).await?;
-    // tracing::info!(
-    //     "Tx broadcasted! See  https://mutinynet.com/tx/{}",
-    //     tx.compute_txid()
-    // );
+    // We need to figure out the `after` parameter at which the vault will expire:
+    let current = dave.get_height().await?;
+    let after = current + AFTER;
 
     // We already have two identities, `dave` and `sammy`. Let's go through the steps in the README to work through the vault:
 

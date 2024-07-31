@@ -96,7 +96,7 @@ impl Client {
         balance
     }
 
-    pub(crate) async fn get_current_blockheight(&self) -> anyhow::Result<u32> {
+    pub(crate) async fn get_height(&self) -> anyhow::Result<u32> {
         let blockheight = self.client.get_height().await?;
         tracing::info!("Current blockheight: {}", blockheight);
         Ok(blockheight)
