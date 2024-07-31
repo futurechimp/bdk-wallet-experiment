@@ -1,9 +1,9 @@
 use crate::{keys, utils, DB_PATH, ESPLORA_URL, NETWORK};
 
 use bdk_esplora::{esplora_client, EsploraAsyncExt};
+use bdk_wallet::bitcoin::bip32::Xpub;
 use bdk_wallet::bitcoin::{Address, Amount, Psbt, Transaction};
 use bdk_wallet::chain::Persisted;
-use bdk_wallet::keys::ExtendedKey;
 use bdk_wallet::template::Bip84;
 use bdk_wallet::{rusqlite, Balance, KeychainKind, SignOptions, Wallet};
 use std::collections::BTreeSet;
@@ -16,6 +16,7 @@ pub(crate) struct Client {
     client: esplora_client::AsyncClient,
     conn: rusqlite::Connection,
     name: String,
+    pub(crate) wallet_public_key: Xpub,
     pub(crate) wallet: Persisted<Wallet>,
 }
 
@@ -26,24 +27,19 @@ impl Client {
         let mut conn = rusqlite::Connection::open(DB_PATH)?;
 
         let keys_dir = utils::home(name);
-        let xkey: ExtendedKey = keys::load_from_file(&keys_dir)?;
+        let (xprv, xpub) = keys::load_from_file(&keys_dir)?;
 
-        let xprv = xkey
-            .into_xprv(NETWORK)
-            .expect("couldn't turn xkey into xprv");
-
-        let external_descriptor1 = Bip84(xprv.clone(), KeychainKind::External);
-
-        let internal_descriptor = Bip84(xprv, KeychainKind::Internal);
-
-        let wallet = Wallet::create(external_descriptor1, internal_descriptor)
+        let external_descriptor = Bip84(xprv.clone(), KeychainKind::External);
+        let internal_descriptor = Bip84(xprv.clone(), KeychainKind::Internal);
+        let wallet = Wallet::create(external_descriptor, internal_descriptor)
             .network(NETWORK)
-            .create_wallet(&mut conn)?;
+            .create_wallet(&mut conn)?; //xkey.into_xpub(NETWORK, wallet.secp_ctx());
 
         Ok(Client {
             client,
             conn,
             name: name.to_string(),
+            wallet_public_key: xpub,
             wallet,
         })
     }

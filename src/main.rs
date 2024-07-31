@@ -3,8 +3,9 @@ use std::str::FromStr;
 #[allow(unused)]
 use bdk_wallet::bitcoin::{Amount, Network};
 use bdk_wallet::{
+    bitcoin::PublicKey,
     miniscript::{self, policy::Concrete},
-    KeychainKind,
+    KeychainKind, SignOptions,
 };
 use regex::Regex;
 
@@ -13,6 +14,7 @@ const NETWORK: Network = Network::Signet;
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
 const AFTER: u32 = 5; // 2 minutes when using mutiny
+const FUND_THE_VAULT: bool = false;
 
 mod esplora;
 mod keys;
@@ -75,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
     let policy_str = format!("or(pk({emergency_key}),and(pk({unvault_key}),after({after})))");
     tracing::info!("policy_str: {} ", policy_str);
 
-    let policy = Concrete::<String>::from_str(&policy_str)?;
+    let policy = Concrete::<PublicKey>::from_str(&policy_str)?;
     tracing::info!("policy: {} ", policy); // we never get here
 
     // Create the vault descriptor: `wsh(or(pk({emergency_key}),and(pk({unvault_key}),after({after})))`.
@@ -85,25 +87,38 @@ async fn main() -> anyhow::Result<()> {
         .expect("failed descriptor sanity check");
 
     tracing::info!("descriptor: {} ", descriptor);
-    // Somehow create an equivalent of the Output from the TypeScript code. Ensure that the signer keys are set to the Dave and Sammy keys, equivalent to:
-    // ```
-    // const wshOutput = new Output({
-    //   descriptor: wshDescriptor,
-    //   network,
-    //   signersPubKeys: [EMERGENCY_RECOVERY ? emergencyPair.publicKey : unvaultKey]
-    // });
-    //```
 
-    // Get the vault address from the Output and print it, equivalent to:
-    // ```ts
-    // const wshAddress = wshOutput.getAddress();
-    // ```
+    // Grab the vault address from the descriptor
+    let vault_address = descriptor.address(NETWORK)?;
+    tracing::info!("address: {} ", vault_address);
 
     // Fund the vault if needed, using the regular Dave wallet and a simple transfer
+    if FUND_THE_VAULT {
+        let mut transfer_psbt = dave.simple_transfer(vault_address, Amount::from_sat(500))?;
+        tracing::info!("transfer_psbt: {} ", transfer_psbt);
 
-    // Test the vault by attempting to transfer out, using Dave's wallet and a simple transfer
+        // Sign the transaction
+        let finalized = dave
+            .wallet
+            .sign(&mut transfer_psbt, SignOptions::default())?;
+
+        assert!(finalized);
+
+        let transaction = transfer_psbt.extract_tx()?;
+        // Broadcast the transaction
+        dave.broadcast(&transaction).await?;
+        tracing::info!(
+            "transaction is at: https://mutinynet.com/tx/{} ",
+            transaction.compute_txid()
+        );
+    }
 
     // Try waiting for the vault to expire, then transfer out again using Dave's wallet
+    // let mut unvault_builder = dave.wallet.build_tx();
+    // let key = unvault_builder.add_recipient(
+    //     dave.next_unused_address()?.script_pubkey(),
+    //     Amount::from_sat(250),
+    // );
 
     // Lastly, go through the process again using Sammy's wallet. He should be able to transfer out of the vault any time he wants.
 
