@@ -8,13 +8,15 @@ use bdk_wallet::{
     SignOptions,
 };
 
+// These constants can be adjusted to control program flow as desired.
+const AFTER: u32 = 5; // ~2 minutes when using mutinynet.com
+const FUND_THE_VAULT: bool = false;
+const UNVAULT: bool = true;
+
+// You shouldn't really need to touch these.
 const DB_PATH: &str = "bdk-wallet.sqlite";
 const NETWORK: Network = Network::Signet;
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
-
-const AFTER: u32 = 5; // 2 minutes when using mutiny
-const FUND_THE_VAULT: bool = false;
-const UNVAULT: bool = true;
 
 mod esplora;
 mod keys;
