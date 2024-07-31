@@ -27,10 +27,12 @@ async fn main() -> anyhow::Result<()> {
     let mut alice = esplora::Client::new(
         "alice",
         "property blush sun knock heavy animal lens syrup matrix february lava chalk",
+        NETWORK,
     )?;
     let bob = esplora::Client::new(
         "bob",
         "shuffle security crazy source shaft nerve improve bone estate grit brain gold",
+        NETWORK,
     )?;
 
     alice.balance();

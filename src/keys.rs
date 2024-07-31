@@ -8,11 +8,12 @@ use bdk_wallet::{
     keys::{DerivableKey, ExtendedKey},
 };
 
-use crate::NETWORK;
-
-pub(crate) fn create_from(mnemonic_words: String) -> anyhow::Result<(Xpriv, Xpub)> {
+pub(crate) fn create_from(
+    mnemonic_words: String,
+    network: Network,
+) -> anyhow::Result<(Xpriv, Xpub)> {
     println!("Creating extended key from mnemonic: {mnemonic_words}");
-    generate_extended_key(mnemonic_words, NETWORK)
+    generate_extended_key(mnemonic_words, network)
 }
 
 /// Creates Bitcoin descriptors from a mnemonic
