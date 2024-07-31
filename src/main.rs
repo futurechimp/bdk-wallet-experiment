@@ -10,7 +10,7 @@ use bdk_wallet::{
 
 // These constants can be adjusted to control program flow as desired.
 const AFTER: u32 = 5; // ~2 minutes when using mutinynet.com
-const FUND_THE_VAULT: bool = false;
+const FUND_THE_VAULT: bool = true;
 const UNVAULT: bool = true;
 
 // You shouldn't really need to touch these.
@@ -26,6 +26,9 @@ mod utils;
 async fn main() -> anyhow::Result<()> {
     utils::tracing_setup();
 
+    // We  have two identities, `alice` and `bob`. Let's assume they have wallets that they're already using, rather than
+    // hard-coding policy strings.
+
     let mut alice = esplora::Client::new(
         "alice",
         "property blush sun knock heavy animal lens syrup matrix february lava chalk",
@@ -37,10 +40,8 @@ async fn main() -> anyhow::Result<()> {
         NETWORK,
     )?;
 
-    alice.balance();
     alice.sync().await?;
-
-    // We  have two identities, `alice` and `bob`.
+    alice.balance();
 
     // We need to figure out the `after` parameter at which the vault will expire:
     let current = alice.get_height().await?;
