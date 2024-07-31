@@ -3,8 +3,6 @@ use std::str::FromStr;
 #[allow(unused)]
 use bdk_wallet::bitcoin::{Amount, Network};
 use bdk_wallet::{
-    bitcoin::amount::serde::as_sat::deserialize,
-    descriptor::IntoWalletDescriptor,
     miniscript::{self, policy::Concrete},
     KeychainKind,
 };
@@ -46,7 +44,9 @@ async fn main() -> anyhow::Result<()> {
         .to_string();
     tracing::info!("unvault_key_fat: {} ", unvault_key_fat);
 
-    // This is the dirtiest coding thing I have done in several decades
+    // This is the dirtiest coding thing I have done in several decades. The regex extracts out the public key
+    // from all the surrounding descriptor cruft that bdk gives back here. I am almost certainly doing something wrong
+    // with bdk. I have asked in their Discord channel what the right approach is here.
     let re = Regex::new(r"(\w{66})").unwrap();
     let unvault_key = re
         .captures(&unvault_key_fat)
@@ -74,18 +74,17 @@ async fn main() -> anyhow::Result<()> {
     // Set up the policy: or(pk({@emergency_key}),and(pk({@unvault_key}),after({after})).
     let policy_str = format!("or(pk({emergency_key}),and(pk({unvault_key}),after({after})))");
     tracing::info!("policy_str: {} ", policy_str);
-    // policy_str: or(pk(wpkh(02cd27efdddce3d6ca228f022696c1bc6c7590cd348fdf8439137ef2445f6ecd70)#3w7wrp44),and(pk(wpkh(02c52472014a9e735a8106442d8dc4866bf5206dfb2d49076ba5f00a4482e58f37)#q49am5ge),after(1303374)))
 
-    // TODO: It's dying here. Policy parsing is not happy, I'm not sure whether it's because the above policy string is wrong, but probably. Could it be that the `pk(wpkh(blah)#1234),` stuff is a problem? I don't know what combination of those is in fact allowed in a policy, will have to check.
     let policy = Concrete::<String>::from_str(&policy_str)?;
     tracing::info!("policy: {} ", policy); // we never get here
 
-    // Create the vault descriptor: `wsh(or(pk({emergency_key}),and(pk({unvault_key}),after({after})))`. Include the keys this time.
+    // Create the vault descriptor: `wsh(or(pk({emergency_key}),and(pk({unvault_key}),after({after})))`.
     let descriptor = miniscript::Descriptor::new_wsh(policy.compile()?)?;
     descriptor
         .sanity_check()
         .expect("failed descriptor sanity check");
 
+    tracing::info!("descriptor: {} ", descriptor);
     // Somehow create an equivalent of the Output from the TypeScript code. Ensure that the signer keys are set to the Dave and Sammy keys, equivalent to:
     // ```
     // const wshOutput = new Output({
