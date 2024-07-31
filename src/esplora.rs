@@ -1,4 +1,4 @@
-use crate::{keys, utils, DB_PATH, ESPLORA_URL, NETWORK};
+use crate::{keys, DB_PATH, ESPLORA_URL, NETWORK};
 
 use bdk_esplora::{esplora_client, EsploraAsyncExt};
 use bdk_wallet::bitcoin::secp256k1::PublicKey;
@@ -22,12 +22,11 @@ pub(crate) struct Client {
 
 impl Client {
     /// Create a new esplora::Client instance
-    pub(crate) fn new(name: &str) -> anyhow::Result<Client> {
+    pub(crate) fn new(name: &str, mnemonic: &str) -> anyhow::Result<Client> {
         let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
         let mut conn = rusqlite::Connection::open(DB_PATH)?;
 
-        let keys_dir = utils::home(name);
-        let (xprv, xpub) = keys::load_from_file(&keys_dir)?;
+        let (xprv, xpub) = keys::create_from(mnemonic.to_string())?;
 
         let external_descriptor = Bip84(xprv.clone(), KeychainKind::External);
         let internal_descriptor = Bip84(xprv.clone(), KeychainKind::Internal);

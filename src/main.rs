@@ -24,13 +24,19 @@ mod utils;
 async fn main() -> anyhow::Result<()> {
     utils::tracing_setup();
 
-    let mut alice = esplora::Client::new("alice")?;
-    let bob = esplora::Client::new("bob")?;
+    let mut alice = esplora::Client::new(
+        "alice",
+        "property blush sun knock heavy animal lens syrup matrix february lava chalk",
+    )?;
+    let bob = esplora::Client::new(
+        "bob",
+        "shuffle security crazy source shaft nerve improve bone estate grit brain gold",
+    )?;
 
     alice.balance();
     alice.sync().await?;
 
-    // We  have two identities, `alice` and `bob`. Let's go through the steps in the README to work through the vault:
+    // We  have two identities, `alice` and `bob`.
 
     // We need to figure out the `after` parameter at which the vault will expire:
     let current = alice.get_height().await?;
