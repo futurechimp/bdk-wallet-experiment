@@ -152,10 +152,10 @@ Once funds are moved into `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tph
 Let's do something similar to the vault idea in Rust. Assume we have two users:
 
 * Alice worries a lot about having her keys stolen.
-* Bob is a Buddhist saint livingin on a mountain top in Tibet protected by clones of Charlize Theron as Furiosa in Mad Max: Fury Road.
+* Bob is a Buddhist saint livingin on a mountain top in Tibet
 
 (Basically, we don't care here very much about key generation etc and we've already got the code for that working well in Rust).
 
-So, Alice plays the role of the `unvault_key` guy. She will keep her funds in the vault. She can't unlock funds until vault time expires.
+So, Alice plays the role of the `unvault_key` user. She will keep her funds in the vault. She can't unlock funds until vault time expires.
 
-Alice's good buddy Sammy, on the other hand, will be the incorruptible and well-protected Tibetan monk who holds the `emergency_key`.
+Alice's good buddy Bob, on the other hand, will be the incorruptible and well-protected Tibetan monk who holds the `emergency_key`.

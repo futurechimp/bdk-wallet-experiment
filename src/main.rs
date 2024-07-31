@@ -10,8 +10,8 @@ use bdk_wallet::{
 
 // These constants can be adjusted to control program flow as desired.
 const AFTER: u32 = 5; // ~2 minutes when using mutinynet.com
-const FUND_THE_VAULT: bool = true;
-const UNVAULT: bool = true;
+const FUND_THE_VAULT: bool = true; // change this to true when you want to fund the vault
+const UNVAULT: bool = true; // switch between unvault and emergency usage
 
 // You shouldn't really need to touch these.
 const DB_PATH: &str = "bdk-wallet.sqlite";
@@ -22,6 +22,16 @@ mod esplora;
 mod keys;
 mod utils;
 
+// A port of the vault idea from https://bitcoinerlab.com/guides/miniscript-vault to Rust. Assume we have two users:
+//
+// * Alice worries a lot about having her keys stolen. She can "unvault" her funds only after the expiration of a timelock.
+// * Bob is a Buddhist saint living on a mountain top in Tibet. He can move the locked funds at any time when he gets a phone call from Alice.
+//
+// We want to use existing keys.
+//
+// Alice plays the role of the `unvault_key` user. She will keep her funds in the vault. She can't unlock funds until vault time expires.
+//
+// Alice's good buddy Bob, on the other hand, will be the incorruptible and well-protected Tibetan monk who holds the `emergency_key`.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     utils::tracing_setup();
@@ -68,7 +78,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Grab the vault address from the descriptor
     let vault_address = vault_descriptor.address(NETWORK)?;
-    tracing::info!("vault address: {} ", vault_address);
+    tracing::info!(
+        "vault address: https://mutinynet.com/address/{} ",
+        vault_address
+    );
 
     // Fund the vault if needed, using the regular Alice wallet and a simple transfer.
     // This constant is set up at the top of the file
