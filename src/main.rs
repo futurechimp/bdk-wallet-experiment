@@ -41,6 +41,8 @@ mod utils;
 async fn main() -> anyhow::Result<()> {
     utils::tracing_setup();
 
+    let amount = 10000;
+
     // We  have two identities, `alice` and `bob`. Let's assume they have wallets that they're already using, rather than
     // hard-coding policy strings.
 
@@ -114,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
     // Transfer some funds into the bridge
     let deposit_psbt = alice.simple_transfer(
         bridge_descriptor.address(Network::Signet)?,
-        Amount::from_sat(10000),
+        Amount::from_sat(amount),
     )?;
     let deposit_tx = deposit_psbt.extract_tx()?;
 
@@ -145,11 +147,6 @@ async fn main() -> anyhow::Result<()> {
         outputs: vec![],
     };
 
-    let receiver = alice.next_unused_address()?;
-    println!("receiver: {}", receiver);
-
-    let amount = 10000;
-
     let (outpoint, witness_utxo) = get_vout(&deposit_tx, &bridge_descriptor.script_pubkey());
 
     let txin = TxIn {
@@ -160,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
     psbt.unsigned_tx.input.push(txin);
 
     psbt.unsigned_tx.output.push(TxOut {
-        script_pubkey: receiver.script_pubkey(),
+        script_pubkey: alice.next_unused_address()?.script_pubkey(),
         value: Amount::from_sat(amount / 5 - 500),
     });
 
@@ -170,7 +167,6 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Generating signatures & witness data
-
     let mut input = psbt::Input::default();
     input
         .update_with_descriptor_unchecked(&bridge_descriptor)
@@ -190,24 +186,29 @@ async fn main() -> anyhow::Result<()> {
     // Fixme: Take a parameter
     let hash_ty = bitcoin::sighash::EcdsaSighashType::All;
 
-    let sk1 = bob.wallet_private_key;
-    let sk2 = carol.wallet_private_key;
+    // let sk1 = bob.wallet_private_key;
+    // let sk2 = carol.wallet_private_key;
 
     // Finally construct the signature and add to psbt
-    let sig1 = secp256k1.sign_ecdsa(&msg, &sk1);
-    let pk1: bitcoin::PublicKey = sk1.public_key(&secp256k1).into();
+    // let sig1 = secp256k1.sign_ecdsa(&msg, &sk1);
+    // let pk1: bitcoin::PublicKey = sk1.public_key(&secp256k1).into();
 
-    // assert!(secp256k1.verify_ecdsa(&msg, &sig1, &pk1).is_ok());
+    // assert!(secp256k1
+    //     .verify_ecdsa(&msg, &sig1, &sk1.public_key(&secp256k1))
+    //     .is_ok());
 
     // Second key just in case
-    let sig2 = secp256k1.sign_ecdsa(&msg, &sk2);
-    let pk2 = sk2.public_key(&secp256k1);
-    assert!(secp256k1.verify_ecdsa(&msg, &sig2, &pk2).is_ok());
+    // let sig2 = secp256k1.sign_ecdsa(&msg, &sk2);
+    // let pk2 = sk2.public_key(&secp256k1);
+    // assert!(secp256k1.verify_ecdsa(&msg, &sig2, &pk2).is_ok());
+
+    // Since the above is not working, let's try signing with the alice key
+    let alice_sig = secp256k1.sign_ecdsa(&msg, &alice.wallet_private_key);
 
     psbt.inputs[0].partial_sigs.insert(
-        pk1,
+        alice.wallet_public_key.into(),
         bitcoin::ecdsa::Signature {
-            signature: sig1,
+            signature: alice_sig,
             sighash_type: hash_ty,
         },
     );
@@ -216,10 +217,11 @@ async fn main() -> anyhow::Result<()> {
     // println!("{}", psbt);
 
     psbt.finalize_mut(&secp256k1).unwrap();
+
     // println!("finalize: {:#?}", psbt);
 
     let unbridge_tx = psbt.extract_tx().expect("failed to extract tx");
-    // println!("{}", bitcoin::consensus::encode::serialize_hex(&tx));
+    // println!("{}", bitcoin::consensus::encode::serialize_hex(&unbridge_tx));
 
     // This constant is set up at the top of the file
     if UNBRIDGE_FUNDS {
