@@ -1,7 +1,7 @@
 use crate::{keys, DB_PATH, ESPLORA_URL, NETWORK};
 
 use bdk_esplora::{esplora_client, EsploraAsyncExt};
-use bdk_wallet::bitcoin::secp256k1::PublicKey;
+use bdk_wallet::bitcoin::secp256k1::{PublicKey, SecretKey};
 use bdk_wallet::bitcoin::{Address, Amount, Network, Psbt, Transaction};
 use bdk_wallet::chain::Persisted;
 use bdk_wallet::template::Bip84;
@@ -17,6 +17,7 @@ pub(crate) struct Client {
     conn: rusqlite::Connection,
     name: String,
     pub(crate) wallet_public_key: PublicKey,
+    pub(crate) wallet_private_key: SecretKey,
     pub(crate) wallet: Persisted<Wallet>,
 }
 
@@ -39,6 +40,7 @@ impl Client {
             conn,
             name: name.to_string(),
             wallet_public_key: xpub.public_key,
+            wallet_private_key: xprv.private_key,
             wallet,
         })
     }
