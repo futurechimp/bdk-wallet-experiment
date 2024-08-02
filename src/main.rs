@@ -76,9 +76,6 @@ fn get_vout(tx: &Transaction, spk: &Script) -> (OutPoint, TxOut) {
     panic!("Only call get vout on functions which have the expected outpoint");
 }
 
-// Warning: For anyone who randomly runs across this, the code below totally doesn't work - it is an attempt to
-// understand how Bitcoin Development Kit's descriptor wallets are used in practice. If I get it to work,
-// I'll be sure to update this message. Right now my understanding of spend conditions is pretty underdeveloped.
 #[tokio::main]
 async fn main() {
     let amount = 1000;
@@ -120,6 +117,16 @@ async fn main() {
 
     // Sync the client and wallet
     sync(&client, &mut wallet, &mut conn).await;
+
+    if wallet.balance().total().lt(&Amount::from_sat(amount)) {
+        println!("You don't have any funds to deposit into the descriptor's address.");
+        println!("We will wait here for a minute until you hit the Mutinynet faucet");
+        println!(
+            "Please visit https://faucet.mutinynet.com and send some sats to {}",
+            wallet.next_unused_address(KeychainKind::External)
+        );
+        sleep(Duration::from_secs(60)).await;
+    }
 
     // Get Alice's public key so we can write it into the policy/descriptor
     let alice_pk = xpub.public_key;
