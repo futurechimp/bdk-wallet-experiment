@@ -225,18 +225,21 @@ async fn main() {
     // Generating signatures & witness data
     let mut input = psbt::Input::default();
     input.update_with_descriptor_unchecked(&descriptor).unwrap();
-
     input.witness_utxo = Some(witness_utxo.clone());
     psbt.inputs.push(input);
     psbt.outputs.push(psbt::Output::default());
 
+    // Construct our own SighashCache which we can use for signing.
+    // TODO: check whether it's possible to use the wallet's internal
+    // signing mechanism and get rid of a lot of this manually-constructed
+    // signing code.
     let mut sighash_cache = SighashCache::new(&psbt.unsigned_tx);
     let msg = psbt
         .sighash_msg(0, &mut sighash_cache, None)
         .unwrap()
         .to_secp_msg();
 
-    // Sign with Alice's private key
+    // Sign the message with Alice's private key
     let alice_sig = secp.sign_ecdsa(&msg, &alice_xprv.private_key);
 
     psbt.inputs[0].partial_sigs.insert(
@@ -247,16 +250,13 @@ async fn main() {
         },
     );
 
-    // println!("{:#?}", psbt);
-    // println!("{}", psbt);
+    // Finalize the psbt
+    psbt.finalize_mut(&secp).expect("problem finalizing psbt");
 
-    psbt.finalize_mut(&secp).unwrap();
-
-    // println!("finalize: {:#?}", psbt);
-
+    // Extract the transaction from the psbt
     let spend_tx = psbt.extract_tx().expect("failed to extract tx");
-    // println!("{}", bitcoin::consensus::encode::serialize_hex(&spend_tx));
 
+    // Broadcast it to spend!
     alice_client
         .broadcast(&spend_tx)
         .await
