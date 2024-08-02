@@ -309,6 +309,7 @@ async fn main() {
     );
 
     // Finalize the psbt
+    // PROBLEM: flames out with: problem finalizing psbt: [InputError(MiniscriptError(CouldNotSatisfy), 0)]
     psbt.finalize_mut(&secp).expect("problem finalizing psbt");
 
     // Extract the transaction from the psbt
