@@ -81,7 +81,8 @@ async fn main() {
     let amount = 1000;
     let secp = Secp256k1::new();
 
-    // create a wallet
+    // Create a wallet and keys for alice
+    //
     let alice_words = "property blush sun knock heavy animal lens syrup matrix february lava chalk";
     let alice_mnemonic = Mnemonic::parse(alice_words).unwrap();
     let alice_xkey: ExtendedKey = alice_mnemonic
@@ -106,7 +107,8 @@ async fn main() {
     let alice_client = esplora_client::Builder::new(ESPLORA_URL)
         .build_async()
         .expect("couldn't build client");
-    let mut conn = rusqlite::Connection::open(DB_PATH).expect("couldn't open rusqlite connection");
+    let alice_db = format!("alice-{}", DB_PATH);
+    let mut conn = rusqlite::Connection::open(alice_db).expect("couldn't open rusqlite connection");
 
     let external_descriptor = Bip84(alice_xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(alice_xprv.clone(), KeychainKind::Internal);
@@ -129,11 +131,68 @@ async fn main() {
     }
 
     // Get Alice's public key so we can write it into the policy/descriptor
-    let alice_pk = alice_xpub.public_key;
-    println!("alice: {}", alice_pk);
+    let unvault_key = alice_xpub.public_key;
+    println!("alice's unvault_key: {}", unvault_key);
+
+    // Create a wallet and keys for bob
+    //
+    let bob_words = "property blush sun knock heavy animal lens syrup matrix february lava chalk";
+    let bob_mnemonic = Mnemonic::parse(bob_words).unwrap();
+    let bob_xkey: ExtendedKey = bob_mnemonic
+        .clone()
+        .into_extended_key()
+        .expect("couldn't turn mnemonic into xkey");
+    let bob_xprv = bob_xkey
+        .into_xprv(Network::Signet)
+        .expect("unable to turn xkey into xpriv");
+
+    // Re-generate so we can grab the public key, bob_xkey above was consumed on use.
+    let bob_xkey: ExtendedKey = bob_mnemonic
+        .into_extended_key()
+        .expect("couldn't turn mnemonic into xkey");
+
+    let bob_xpub: Xpub = bob_xkey
+        .into_extended_key()
+        .expect("couldn't turn mnemonic into xkey")
+        .into_xpub(Network::Signet, &secp);
+
+    // Create an Esplora client for Bob
+    let _bob_client = esplora_client::Builder::new(ESPLORA_URL)
+        .build_async()
+        .expect("couldn't build client");
+
+    let bob_db = format!("bob-{}", DB_PATH);
+    let mut conn = rusqlite::Connection::open(bob_db).expect("couldn't open rusqlite connection");
+
+    let external_descriptor = Bip84(bob_xprv.clone(), KeychainKind::External);
+    let internal_descriptor = Bip84(bob_xprv.clone(), KeychainKind::Internal);
+    let mut bob_wallet = Wallet::create(external_descriptor, internal_descriptor)
+        .network(Network::Signet)
+        .create_wallet(&mut conn)
+        .expect("couldn't create wallet");
+
+    if bob_wallet.balance().total().lt(&Amount::from_sat(amount)) {
+        println!("You don't have any funds to deposit into the descriptor's address.");
+        println!("We will wait here for a minute until you hit the Mutinynet faucet");
+        println!(
+            "Please visit https://faucet.mutinynet.com and send some sats to {}",
+            bob_wallet.next_unused_address(KeychainKind::External)
+        );
+        sleep(Duration::from_secs(60)).await;
+    }
+
+    // Get Bob's public key so we can write it into the policy/descriptor
+    let emergency_key = bob_xpub.public_key;
+    println!("bob's emergency_key: {}", emergency_key);
+
+    // Ok, now we have two client, key, and wallet setups. Now let's set up a vault policy.
+
+    // We don't want our "after" variable to change all the time, hardcode it for the moment.
+    // TODO: change this once the vault lock is working.
+    let after = 1311208 + 10000;
 
     // Format out the simplest possible policy
-    let policy_str = format!("pk({alice_pk})");
+    let policy_str = format!("or(pk({emergency_key}),and(pk({emergency_key}),after({after})))");
     let policy =
         Concrete::<DefiniteDescriptorKey>::from_str(&policy_str).expect("couldn't create policy");
     println!("Policy is: {}", policy);
