@@ -150,7 +150,8 @@ async fn main() {
 
     // Now that we have an address for the descriptor, we can deposit funds into it.
 
-    // Build a deposit transaction to send funds to the descriptor.
+    // Build a deposit transaction to send funds to the descriptor address. These funds can only be unlocked
+    // by a spending transaction that can match the conditions that are in the descriptor.
     let mut tx_builder = alice_wallet.build_tx();
     tx_builder
         .add_recipient(descriptor.script_pubkey(), Amount::from_sat(amount))
