@@ -330,11 +330,11 @@ async fn main() {
     // Create an input where we can put the plan data
     let mut input = psbt::Input::default();
 
-    // Update the input with the generated plan
-    plan.update_psbt_input(&mut input);
-
     // Add the witness_utxo from the deposit transaction to the input
     input.witness_utxo = Some(witness_utxo.clone());
+
+    // Update the input with the generated plan
+    plan.update_psbt_input(&mut input);
 
     // Push the input to the PSBT
     psbt.inputs.push(input);
@@ -370,7 +370,8 @@ async fn main() {
     );
 
     // Finalize the psbt
-    // PROBLEM: flames out with: problem finalizing psbt: [InputError(MiniscriptError(CouldNotSatisfy), 0)]
+    // PROBLEM: problem finalizing psbt:
+    // [InputError(MiniscriptError(CouldNotSatisfy), 0)]
     psbt.finalize_mut(&secp).expect("problem finalizing psbt");
 
     // Extract the transaction from the psbt
