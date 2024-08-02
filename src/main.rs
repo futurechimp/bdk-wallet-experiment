@@ -257,4 +257,9 @@ async fn main() {
         .broadcast(&spend_tx)
         .await
         .expect("problem broadcasting spend_tx");
+
+    println!(
+        "spend_tx is at https://mutinynet.com/tx/{}",
+        spend_tx.compute_txid()
+    )
 }
