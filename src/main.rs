@@ -147,7 +147,7 @@ async fn main() {
         .into_xpub(Network::Signet, &secp);
 
     // Create an Esplora client for Bob
-    let _bob_client = esplora_client::Builder::new(ESPLORA_URL)
+    let bob_client = esplora_client::Builder::new(ESPLORA_URL)
         .build_async()
         .expect("couldn't build client");
 
@@ -156,7 +156,7 @@ async fn main() {
 
     let external_descriptor = Bip84(bob_xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(bob_xprv.clone(), KeychainKind::Internal);
-    let _bob_wallet = Wallet::create(external_descriptor, internal_descriptor)
+    let mut bob_wallet = Wallet::create(external_descriptor, internal_descriptor)
         .network(Network::Signet)
         .create_wallet(&mut bob_conn)
         .expect("couldn't create wallet");
@@ -316,11 +316,8 @@ async fn main() {
     //
     // If we wanted to go down a different spend path in the OR condition, we could
     // instead feed it Bob's `emergency_key`
-    let asset_key = DescriptorPublicKey::from_str(&unvault_key.to_string()).unwrap();
-    let assets = Assets::new()
-        .add(asset_key)
-        .after(LockTime::from_height(after).expect("couldn't convert to locktime"));
-
+    let asset_key = DescriptorPublicKey::from_str(&emergency_key.to_string()).unwrap();
+    let assets = Assets::new().add(asset_key);
     // Automatically generate a plan for spending the descriptor
     let plan = descriptor
         .clone()
@@ -358,13 +355,13 @@ async fn main() {
         .unwrap()
         .to_secp_msg();
 
-    // Sign the message with Alice's private key
-    let alice_sig = secp.sign_ecdsa(&msg, &alice_xprv.private_key);
+    // Sign the message with Bobs's private key
+    let bob_sig = secp.sign_ecdsa(&msg, &bob_xprv.private_key);
 
     psbt.inputs[0].partial_sigs.insert(
-        alice_xpub.public_key.into(),
+        bob_xpub.public_key.into(),
         bitcoin::ecdsa::Signature {
-            signature: alice_sig,
+            signature: bob_sig,
             sighash_type: EcdsaSighashType::All,
         },
     );
@@ -376,9 +373,12 @@ async fn main() {
     // Extract the transaction from the psbt
     let my_spend_tx = psbt.extract_tx().expect("failed to extract tx");
 
+    // Sync Bob's client and wallet
+    sync(&bob_client, &mut bob_wallet, &mut bob_conn).await;
+
     // Broadcast it to spend! This should fail, because although we are using Alice's
     // key to spend, the timelock has not yet elapsed.
-    alice_client
+    bob_client
         .broadcast(&my_spend_tx)
         .await
         .expect("problem broadcasting spend_tx");
