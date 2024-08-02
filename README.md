@@ -2,7 +2,7 @@
 
 A quick tryout of the (new-style) BDK wallet, which is the way to use BDK for the future. All old BDK stuff is going to be retired soon.
 
-The project is basically a way to try and figure out the process of generating policies + descriptors, extracting them into PSBTS, signing those cooperatively, putting them into the blockchain, and processing them as (semi-retarded) smart contracts.
+The project is basically a way to try and figure out the process of generating policies + descriptors, extracting them into PSBTS, signing those cooperatively, putting them into the blockchain, and processing them.
 
 Because the BDK docs don't really have a full, complex example like this, I'm going to take the TypeScript project over at [Bitcoiner Labs](https://bitcoinerlab.com/guides/miniscript-vault) ([Github](https://github.com/bitcoinerlab/playground/tree/main/descriptors/miniscript)) and recreate it in Rust.
 
@@ -13,14 +13,14 @@ The Bitcoiner Labs tutorial makes a very simple *Bitcoin vault*.
 
 Funds are locked into the vault address, and they can't be moved until after a timelock. If the user becomes concerned that maybe somebody has stolen their regular mnemonic, the idea is that they have another "emergency key" in another country (perhaps stored with Grandma) and they can fly there and *immediately* access funds.
 
-This will serve to demo a complex policy, descriptor, and signing process, and there's a working TypeScript example to work from so I can see everything working.
+This will serve to demo a complex policy, descriptor, and signing process, and there's a working TypeScript example to work from so I can see everything in action. It works pretty well.
 
-Breaking things down, the steps are as follows.
+Breaking things down, the logical steps are as follows.
 
 First, generate two keypairs:
 
-a) one keypair for "normal" usage, a mnemonic.
-b) one emergency keypair
+a) one keypair for "normal" usage, i.e. a mnemonic.
+b) one emergency keypair, formatted as a WIF file.
 
 The keys derived from the mnemonic cannot move the funds before expiration of the timelock. The emergency keypair can move funds at any time.
 
@@ -45,9 +45,9 @@ The key parameters are public keys. The text is maddeningly unspecific about exa
 
 Ok, seems doable. Let's explore the code.
 
-So we have two keys, a block number afte which funds can be unvaulted, and an abstract policy. What happens next?
+We have two keys, a block number after which funds can be unvaulted, and an abstract policy sitting in a string. What happens next?
 
-They do a mutable string replace to sub the `after` parameter into the policy, compile the policy (without the keys in place) and check if the policy is sane.
+They do a mutable string replace to sub the `after` parameter into the policy, compile the policy (without the keys in place), and check if the policy is sane.
 
 Only after sanity checking the policy do they take the miniscript of the compiled policy and turn it into a `wsh` **descriptor**, subbing in the keys:
 
@@ -78,21 +78,21 @@ const wshOutput = new Output({
 });
 ```
 
-They then get the (not-yet-existing) address of the `wshOutput`, and check if the UTXO exists on the blockchain. The first time, of course, it won't exist. So they halt, and ask you to fund the `wshAddress`, which was derived off-chain like so:
+They then get the (not-yet-existing-on-chain) address of the `wshOutput`, and check if the UTXO exists on the blockchain. The first time, of course, it won't exist. So they halt, and ask you to fund the `wshAddress`, which was derived off-chain like so:
 
 ```ts
 const wshAddress = wshOutput.getAddress();
 ```
 
-Fund the address with a straight-up faucet transfer (nothing fancy). Once you fund the `wshAddress`, and let Bitcoin catch up, you run the program again. This gets you into the vault code path. It's a little convoluted but there are quite a few moving parts.
+Fund the address with a straight-up faucet transfer (nothing fancy). Once you fund the `wshAddress`, and let Bitcoin catch up, you run the program again. This gets you into the vault code path. It's a little convoluted as there are quite a few moving parts.
 
 Once we're in the funded path, we:
 
 1. retrieve the first UTXO id and value of the funding transaction
-2. set up a brand new PSBT, locked to the correct network (in their case, testnet). Let's call this the input PSBT.
+2. set up a brand new PSBT, locked to the correct network (in their case, testnet). Let's call this the **input PSBT**.
 3. get an `inputFinalizer` from the `wshOutput`, by calling `updatePsbtAsInput`.
-4. they construct another `Output` which just shoot vault funds at some hardcoded address. We don't really care where the funds go, this is just to simulate the act of transferring to different addresses based on whether we are using the regular unvault key (in which case funds go to `tb1q4280xax2lt0u5a5s9hd4easuvzalm8v9ege9ge` or the emergency key (in which case funds go to `mkpZhYtJu2r87Js3pDiWJDmPte2NRZ8bJV`). Let's call this second PSBT the output PSBT.
-5. they update the input PSBT with the output PSBT:
+4. they construct another `Output` which just shoots vault funds at some hardcoded address. We don't really care where the funds go, this is just to simulate the act of transferring to different addresses based on whether we are using the regular unvault key (in which case funds go to `tb1q4280xax2lt0u5a5s9hd4easuvzalm8v9ege9ge` or the emergency key (in which case funds go to `mkpZhYtJu2r87Js3pDiWJDmPte2NRZ8bJV`). Let's call this second PSBT the **output PSBT**.
+5. they update the **input PSBT** with the **output PSBT**:
 
 ```ts
 new Output({
@@ -104,21 +104,21 @@ new Output({
   network
 }).updatePsbtAsOutput({ psbt, value: inputValue - 1000 });
 ```
-To me this looks a lot like psbt updates in Rust, I guess we will find out. The above flow is completely commented in my TypeScript version.
+To me this looks a lot like psbt updates in Rust, I guess we will find out. The above flow is completely commented in my (local) TypeScript version.
 
 ## At this point, you may be wondering, WTF?
 
-Take note: all of this, so far, has happened completely offline: no activity other than the faucet funding has happened on the blockchain. This is spooky: am I funding some construction that was already there on the blockchain? How can the vault work at all if the initial funding transaction was just sent to a normal address? This seems to be the central mystery.
+Take note: all of this, so far, has happened completely offline. No activity other than the faucet funding has happened on the blockchain. This is spooky: am I funding some construction that was already there on the blockchain? How can the vault work at all if the initial funding transaction was just sent to a normal address? This seems to be the central mystery. Let's solve it below by trying it out.
 
 ## Success
 
-Lastly, the user signs with either unvault key or emergency key, and broadcast the transaction. Depending on which key is used for signing, the transaction may:
+Lastly, the user signs with either unvault key or emergency key, and broadcasts the transaction. Depending on which key is used for signing, the transaction may:
 
 1. move immediately to `mkpZhYtJu2r87Js3pDiWJDmPte2NRZ8bJV` if the `emergency_key` was used,
 2. fail at the miner level if the `unvault_key` was used but the timelock for `after` has not been reached, or
 3. move to `tb1q4280xax2lt0u5a5s9hd4easuvzalm8v9ege9ge` if the `unvault_key` was used `after` the timelock
 
-The question in the heading "WTF?" is now the central mystery (or at least it seemed like magic to me).
+The question in the heading "WTF?" has now been solved with the magic of descriptors (or at least it seems like magic to me).
 
 The answer to the mystery is actually pretty simple. The `wshAddress` is a just a generated, off-chain bitcoin address (in my most recent experiment, it's `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tphv6sz8rwuf`). Initially, there is no transaction relating to it on-chain.
 
@@ -143,16 +143,16 @@ or(pk({emergency_key}),and(pk({unvault_key}),after({after}))
 
 with all the values concretely filled in with the proper keys. `signersPubKeys` in the `wshOutput` interface then choose a path *through* the descriptor, by signing using one of the two possible keys: `unvault_key` (subject to timelock) or `emergency_key` (for immediate funds transfer).
 
-Almost all of the work happens offline, and there is no need to "move funds into an account" as would be necessary in account-based systems (if you come from e.g. Ethereum or Cosmos).
+Almost all of the work happens offline.
 
-Once funds are moved into `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tphv6sz8rwuf`, they can only be moved subject to the policy. Pretty cool!
+Once funds are moved into the descriptor's vault address (in my case, `tb1q0u2vw7tauy8zm3k2s7dxe0w0pqxc7kvm84ellggwn66z89tphv6sz8rwuf`), they can only be moved subject to the policy. Pretty cool!
 
 ## Doing it in Rust
 
 Let's do something similar to the vault idea in Rust. Assume we have two users:
 
 * Alice worries a lot about having her keys stolen.
-* Bob is a Buddhist saint livingin on a mountain top in Tibet
+* Bob is a Buddhist saint living on a mountain top in Tibet
 
 (Basically, we don't care here very much about key generation etc and we've already got the code for that working well in Rust).
 
