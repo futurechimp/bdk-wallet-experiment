@@ -1,6 +1,7 @@
 use bdk_wallet::{
     bitcoin::{absolute::LockTime, EcdsaSighashType},
-    miniscript::{psbt::PsbtInputExt, DefiniteDescriptorKey},
+    keys::DescriptorPublicKey,
+    miniscript::{plan::Assets, DefiniteDescriptorKey},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -281,8 +282,24 @@ async fn main() {
     });
 
     // Generating signatures & witness data
+
+    // Just so we have it close, let's take a look at the descriptor itself:
+    println!("Descriptor: {:?}", descriptor);
+
+    // Let's try using the Plan module
+    let asset_key = DescriptorPublicKey::from_str(&unvault_key.to_string()).unwrap();
+    let assets = Assets::new()
+        .add(asset_key)
+        .after(LockTime::from_height(after).expect("couldn't convert to locktime"));
+
     let mut input = psbt::Input::default();
-    input.update_with_descriptor_unchecked(&descriptor).unwrap();
+
+    descriptor
+        .clone()
+        .plan(&assets)
+        .expect("couldn't create plan")
+        .update_psbt_input(&mut input);
+
     input.witness_utxo = Some(witness_utxo.clone());
     psbt.inputs.push(input);
     psbt.outputs.push(psbt::Output::default());
