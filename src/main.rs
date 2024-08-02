@@ -30,8 +30,6 @@ use bdk_wallet::{
 
 const DB_PATH: &str = "bdk-wallet.sqlite";
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
-const STOP_GAP: usize = 5;
-const PARALLEL_REQUESTS: usize = 5;
 
 // A pretty standard sync method, shouldn't be anything controversial here.
 pub(crate) async fn sync(
@@ -53,7 +51,7 @@ pub(crate) async fn sync(
     });
 
     let mut update = client
-        .full_scan(request, STOP_GAP, PARALLEL_REQUESTS)
+        .full_scan(request, 5, 5)
         .await
         .expect("full scan problem");
     let now = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
