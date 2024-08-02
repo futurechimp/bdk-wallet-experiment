@@ -283,7 +283,17 @@ async fn main() {
 
     // Generating signatures & witness data
 
-    // Let's try using the Plan module
+    // Let's try using the Plan module.
+    //
+    // Our vault policy (and descriptor) is a branching policy, because it has an OR in it.
+    // This means that it has multiple spending paths, and we need to specify which one we want
+    // to use.
+    //
+    // Rust Miniscript's `plan` module is designed to help with this. Given a descriptor and a set
+    // of assets (keys, hash preimages, timelock block heights), the plan module will automatically
+    // generate a plan for spending the descriptor.
+    //
+    // It can also update a PSBT with the necessary spending information.
     let asset_key = DescriptorPublicKey::from_str(&unvault_key.to_string()).unwrap();
     let assets = Assets::new()
         .add(asset_key)
@@ -296,6 +306,8 @@ async fn main() {
 
     let mut input = psbt::Input::default();
     input.witness_utxo = Some(witness_utxo.clone());
+
+    // Update the input with the generated plan
     plan.update_psbt_input(&mut input);
 
     psbt.inputs.push(input);
@@ -303,7 +315,7 @@ async fn main() {
 
     // Construct our own SighashCache which we can use for signing.
     // TODO: check whether it's possible to use the wallet's internal
-    // signing mechanism and get rid of a lot of this manually-constructed
+    // signing mechanism and get rid of this manually-constructed
     // signing code.
     let mut sighash_cache = SighashCache::new(&psbt.unsigned_tx);
     let msg = psbt
