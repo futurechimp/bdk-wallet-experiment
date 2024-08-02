@@ -170,7 +170,7 @@ async fn main() {
     // into the generated address. How do we transfer the sats back out?
     //
     // My current, perhaps wrong, understanding, is that we need to manually generate a
-    // bitcoin::Transaction with UTXOs based on the hex of the deposit_tx transaction
+    // bitcoin::Transaction with inputs based on the outputs of the deposit_tx transaction
     // we just sent.
 
     // The only place I have seen code which attempts to spend locked funds is at
