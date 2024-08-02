@@ -132,20 +132,25 @@ async fn main() {
     let alice_pk = alice_xpub.public_key;
     println!("alice: {}", alice_pk);
 
+    // Format out the simplest possible policy
     let policy_str = format!("pk({alice_pk})");
     let policy =
         Concrete::<DefiniteDescriptorKey>::from_str(&policy_str).expect("couldn't create policy");
-    println!("{}", policy);
+    println!("Policy is: {}", policy);
     let descriptor =
         Descriptor::new_wsh(policy.compile().unwrap()).expect("could not create descriptor");
 
     assert!(descriptor.sanity_check().is_ok());
-    println!("Descriptor pubkey script: {:?}", descriptor.script_pubkey());
+    println!("Descriptors can have an address and their own script_pubkey()");
     println!(
         "Descriptor address: https://mutinynet.com/address/{}",
         descriptor.address(Network::Signet).unwrap()
     );
+    println!("Descriptor pubkey script: {:?}", descriptor.script_pubkey());
 
+    // Now that we have an address for the descriptor, we can deposit funds into it.
+
+    // Build a deposit transaction to send funds to the descriptor.
     let mut tx_builder = alice_wallet.build_tx();
     tx_builder
         .add_recipient(descriptor.script_pubkey(), Amount::from_sat(amount))
@@ -161,7 +166,7 @@ async fn main() {
         .extract_tx()
         .expect("couldn't extract deposit tx");
 
-    // Broadcast the transaction
+    // Broadcast the deposit transaction
     alice_client
         .broadcast(&deposit_tx)
         .await
@@ -180,10 +185,6 @@ async fn main() {
     // Alice's public key, turned into a descriptor, and generated an address. We have sent sats
     // into the generated address. How do we transfer the sats back out?
     //
-    // My current, perhaps wrong, understanding, is that we need to manually generate a
-    // bitcoin::Transaction with inputs based on the outputs of the deposit_tx transaction
-    // we just sent.
-
     // The only place I have seen code which attempts to spend locked funds is at
     // https://github.com/rust-bitcoin/rust-miniscript/blob/master/examples/psbt_sign_finalize.rs
     // so the code below is largely copied from there. I have tried to boil it down to the simplest
