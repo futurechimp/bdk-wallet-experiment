@@ -313,17 +313,17 @@ async fn main() {
     psbt.finalize_mut(&secp).expect("problem finalizing psbt");
 
     // Extract the transaction from the psbt
-    let spend_tx = psbt.extract_tx().expect("failed to extract tx");
+    let my_spend_tx = psbt.extract_tx().expect("failed to extract tx");
 
     // Broadcast it to spend! This should fail, because although we are using Alice's
     // key to spend, the timelock has not yet elapsed.
     alice_client
-        .broadcast(&spend_tx)
+        .broadcast(&my_spend_tx)
         .await
         .expect("problem broadcasting spend_tx");
 
     println!(
         "spend_tx is at https://mutinynet.com/tx/{}",
-        spend_tx.compute_txid()
+        my_spend_tx.compute_txid()
     )
 }
