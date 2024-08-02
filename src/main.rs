@@ -64,7 +64,7 @@ pub(crate) async fn sync(
     Ok(())
 }
 
-// Find the Outpoint by spk, useful for ensuring that we grab the right
+// Find the OutPoint by spk, useful for ensuring that we grab the right
 // output transaction to use as input for our spend transaction
 fn get_vout(tx: &Transaction, spk: &Script) -> (OutPoint, TxOut) {
     for (i, txout) in tx.clone().output.into_iter().enumerate() {
@@ -76,7 +76,7 @@ fn get_vout(tx: &Transaction, spk: &Script) -> (OutPoint, TxOut) {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     let amount = 1000;
 
     // create a wallet
@@ -90,8 +90,7 @@ async fn main() -> anyhow::Result<()> {
         .into_xprv(Network::Signet)
         .expect("unable to turn xkey into xpriv");
 
-    // Re-generate the public key, this is a bit gross but it's necessary as xkey
-    // gets consumed on use.
+    // Re-generate so we can grab the public key, xkey above was consumed on use.
     let xkey: ExtendedKey = mnemonic
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey");
@@ -103,14 +102,17 @@ async fn main() -> anyhow::Result<()> {
         .into_xpub(Network::Signet, &secp);
 
     // Create an Esplora client
-    let client = esplora_client::Builder::new(ESPLORA_URL).build_async()?;
-    let mut conn = rusqlite::Connection::open(DB_PATH)?;
+    let client = esplora_client::Builder::new(ESPLORA_URL)
+        .build_async()
+        .expect("couldn't build client");
+    let mut conn = rusqlite::Connection::open(DB_PATH).expect("couldn't open rusqlite connection");
 
     let external_descriptor = Bip84(xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(xprv.clone(), KeychainKind::Internal);
     let mut wallet = Wallet::create(external_descriptor, internal_descriptor)
         .network(Network::Signet)
-        .create_wallet(&mut conn)?;
+        .create_wallet(&mut conn)
+        .expect("couldn't create wallet");
 
     // Sync the client and wallet
     sync(&client, &mut wallet, &mut conn)
@@ -122,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
     println!("alice: {}", alice_pk);
 
     let policy_str = format!("pk({alice_pk})");
-    let policy = Concrete::<PublicKey>::from_str(&policy_str)?;
+    let policy = Concrete::<PublicKey>::from_str(&policy_str).expect("couldn't create policy");
     println!("{}", policy);
     let descriptor =
         Descriptor::new_wsh(policy.compile().unwrap()).expect("could not create descriptor");
@@ -138,15 +140,22 @@ async fn main() -> anyhow::Result<()> {
     tx_builder
         .add_recipient(descriptor.script_pubkey(), Amount::from_sat(amount))
         .enable_rbf();
-    let mut deposit_psbt = tx_builder.finish()?;
-    let finalized = wallet.sign(&mut deposit_psbt, SignOptions::default())?;
+    let mut deposit_psbt = tx_builder.finish().expect("couldn't finish deposit_psbt");
+    let finalized = wallet
+        .sign(&mut deposit_psbt, SignOptions::default())
+        .expect("couldn't finalize deposit psbt");
     assert!(finalized);
 
     // Extract the transaction from the deposit psbt
-    let deposit_tx = deposit_psbt.extract_tx()?;
+    let deposit_tx = deposit_psbt
+        .extract_tx()
+        .expect("couldn't extract deposit tx");
 
     // Broadcast the transaction
-    client.broadcast(&deposit_tx).await?;
+    client
+        .broadcast(&deposit_tx)
+        .await
+        .expect("problem broadcasting deposit tx");
 
     println!(
         "depo tx is at: https://mutinynet.com/tx/{}",
@@ -246,7 +255,8 @@ async fn main() -> anyhow::Result<()> {
     let spend_tx = psbt.extract_tx().expect("failed to extract tx");
     // println!("{}", bitcoin::consensus::encode::serialize_hex(&spend_tx));
 
-    client.broadcast(&spend_tx).await?;
-
-    Ok(())
+    client
+        .broadcast(&spend_tx)
+        .await
+        .expect("problem broadcasting spend_tx");
 }
