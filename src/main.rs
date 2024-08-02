@@ -79,57 +79,57 @@ fn get_vout(tx: &Transaction, spk: &Script) -> (OutPoint, TxOut) {
 #[tokio::main]
 async fn main() {
     let amount = 1000;
+    let secp = Secp256k1::new();
 
     // create a wallet
-    let words = "property blush sun knock heavy animal lens syrup matrix february lava chalk";
-    let mnemonic = Mnemonic::parse(words).unwrap();
-    let xkey: ExtendedKey = mnemonic
+    let alice_words = "property blush sun knock heavy animal lens syrup matrix february lava chalk";
+    let alice_mnemonic = Mnemonic::parse(alice_words).unwrap();
+    let alice_xkey: ExtendedKey = alice_mnemonic
         .clone()
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey");
-    let xprv = xkey
+    let alice_xprv = alice_xkey
         .into_xprv(Network::Signet)
         .expect("unable to turn xkey into xpriv");
 
-    // Re-generate so we can grab the public key, xkey above was consumed on use.
-    let xkey: ExtendedKey = mnemonic
+    // Re-generate so we can grab the public key, alice_xkey above was consumed on use.
+    let alice_xkey: ExtendedKey = alice_mnemonic
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey");
 
-    let secp = Secp256k1::new();
-    let xpub: Xpub = xkey
+    let alice_xpub: Xpub = alice_xkey
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey")
         .into_xpub(Network::Signet, &secp);
 
     // Create an Esplora client
-    let client = esplora_client::Builder::new(ESPLORA_URL)
+    let alice_client = esplora_client::Builder::new(ESPLORA_URL)
         .build_async()
         .expect("couldn't build client");
     let mut conn = rusqlite::Connection::open(DB_PATH).expect("couldn't open rusqlite connection");
 
-    let external_descriptor = Bip84(xprv.clone(), KeychainKind::External);
-    let internal_descriptor = Bip84(xprv.clone(), KeychainKind::Internal);
-    let mut wallet = Wallet::create(external_descriptor, internal_descriptor)
+    let external_descriptor = Bip84(alice_xprv.clone(), KeychainKind::External);
+    let internal_descriptor = Bip84(alice_xprv.clone(), KeychainKind::Internal);
+    let mut alice_wallet = Wallet::create(external_descriptor, internal_descriptor)
         .network(Network::Signet)
         .create_wallet(&mut conn)
         .expect("couldn't create wallet");
 
-    // Sync the client and wallet
-    sync(&client, &mut wallet, &mut conn).await;
+    // Sync Alice's client and wallet
+    sync(&alice_client, &mut alice_wallet, &mut conn).await;
 
-    if wallet.balance().total().lt(&Amount::from_sat(amount)) {
+    if alice_wallet.balance().total().lt(&Amount::from_sat(amount)) {
         println!("You don't have any funds to deposit into the descriptor's address.");
         println!("We will wait here for a minute until you hit the Mutinynet faucet");
         println!(
             "Please visit https://faucet.mutinynet.com and send some sats to {}",
-            wallet.next_unused_address(KeychainKind::External)
+            alice_wallet.next_unused_address(KeychainKind::External)
         );
         sleep(Duration::from_secs(60)).await;
     }
 
     // Get Alice's public key so we can write it into the policy/descriptor
-    let alice_pk = xpub.public_key;
+    let alice_pk = alice_xpub.public_key;
     println!("alice: {}", alice_pk);
 
     let policy_str = format!("pk({alice_pk})");
@@ -146,12 +146,12 @@ async fn main() {
         descriptor.address(Network::Signet).unwrap()
     );
 
-    let mut tx_builder = wallet.build_tx();
+    let mut tx_builder = alice_wallet.build_tx();
     tx_builder
         .add_recipient(descriptor.script_pubkey(), Amount::from_sat(amount))
         .enable_rbf();
     let mut deposit_psbt = tx_builder.finish().expect("couldn't finish deposit_psbt");
-    let finalized = wallet
+    let finalized = alice_wallet
         .sign(&mut deposit_psbt, SignOptions::default())
         .expect("couldn't finalize deposit psbt");
     assert!(finalized);
@@ -162,7 +162,7 @@ async fn main() {
         .expect("couldn't extract deposit tx");
 
     // Broadcast the transaction
-    client
+    alice_client
         .broadcast(&deposit_tx)
         .await
         .expect("problem broadcasting deposit tx");
@@ -215,7 +215,7 @@ async fn main() {
     psbt.unsigned_tx.input.push(txin);
 
     psbt.unsigned_tx.output.push(TxOut {
-        script_pubkey: wallet
+        script_pubkey: alice_wallet
             .next_unused_address(KeychainKind::External)
             .script_pubkey(),
         value: Amount::from_sat(amount - 250),
@@ -236,10 +236,10 @@ async fn main() {
         .to_secp_msg();
 
     // Sign with Alice's private key
-    let alice_sig = secp.sign_ecdsa(&msg, &xprv.private_key);
+    let alice_sig = secp.sign_ecdsa(&msg, &alice_xprv.private_key);
 
     psbt.inputs[0].partial_sigs.insert(
-        xpub.public_key.into(),
+        alice_xpub.public_key.into(),
         bitcoin::ecdsa::Signature {
             signature: alice_sig,
             sighash_type: EcdsaSighashType::All,
@@ -256,7 +256,7 @@ async fn main() {
     let spend_tx = psbt.extract_tx().expect("failed to extract tx");
     // println!("{}", bitcoin::consensus::encode::serialize_hex(&spend_tx));
 
-    client
+    alice_client
         .broadcast(&spend_tx)
         .await
         .expect("problem broadcasting spend_tx");
