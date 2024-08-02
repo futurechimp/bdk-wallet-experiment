@@ -1,6 +1,6 @@
 use bdk_wallet::{
     bitcoin::{absolute::LockTime, EcdsaSighashType},
-    miniscript::psbt::PsbtInputExt,
+    miniscript::{psbt::PsbtInputExt, DefiniteDescriptorKey},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -15,7 +15,7 @@ use bdk_esplora::{esplora_client, EsploraAsyncExt};
 use bdk_wallet::bitcoin::{Amount, Network};
 use bdk_wallet::{
     bip39::Mnemonic,
-    bitcoin::{self, bip32::Xpub, key::Secp256k1, sighash::SighashCache, PublicKey},
+    bitcoin::{self, bip32::Xpub, key::Secp256k1, sighash::SighashCache},
     chain::Persisted,
     keys::{DerivableKey, ExtendedKey},
     miniscript::{psbt::PsbtExt, Descriptor},
@@ -126,7 +126,8 @@ async fn main() {
     println!("alice: {}", alice_pk);
 
     let policy_str = format!("pk({alice_pk})");
-    let policy = Concrete::<PublicKey>::from_str(&policy_str).expect("couldn't create policy");
+    let policy =
+        Concrete::<DefiniteDescriptorKey>::from_str(&policy_str).expect("couldn't create policy");
     println!("{}", policy);
     let descriptor =
         Descriptor::new_wsh(policy.compile().unwrap()).expect("could not create descriptor");
@@ -215,12 +216,7 @@ async fn main() {
 
     // Generating signatures & witness data
     let mut input = psbt::Input::default();
-
-    // Killer problem: uncommenting `input.update_with_descriptor_unchecked()` causes a compile-time error.
-    // The psbt input wants a Descriptor<DefiniteDescriptorKey> rather than
-    // a Descriptor<PublicKey>. However switching descriptor types gets other errors I'm not sure
-    // how to code around.
-    // input.update_with_descriptor_unchecked(&descriptor).unwrap();
+    input.update_with_descriptor_unchecked(&descriptor).unwrap();
 
     input.witness_utxo = Some(witness_utxo.clone());
     psbt.inputs.push(input);
