@@ -312,7 +312,10 @@ async fn main() {
 
     // To use the plan module, we first create a set of assets that we have on hand.
     // In this case, we want to go through the unvault branch of the policy, so we will
-    // feed it Alice's unvault_key and the block height at which the funds can be spent.
+    // feed it Alice's `unvault_key` and the block height at which the funds can be spent.
+    //
+    // If we wanted to go down a different spend path in the OR condition, we could
+    // instead feed it Bob's `emergency_key`
     let asset_key = DescriptorPublicKey::from_str(&unvault_key.to_string()).unwrap();
     let assets = Assets::new()
         .add(asset_key)
