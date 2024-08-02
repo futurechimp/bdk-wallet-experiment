@@ -28,7 +28,8 @@ use bdk_wallet::{
     miniscript::policy::Concrete,
 };
 
-const DB_PATH: &str = "bdk-wallet.sqlite";
+// We will use BDK's Esplora client and the Mutiny Signet chain, which has a
+// very convenient block time of 30 seconds and an easy-to-access faucet.
 const ESPLORA_URL: &str = "https://mutinynet.com/api";
 
 // A pretty standard sync method, shouldn't be anything controversial here.
@@ -119,20 +120,6 @@ async fn main() {
     // Sync Alice's client and wallet
     sync(&alice_client, &mut alice_wallet, &mut conn).await;
 
-    if alice_wallet.balance().total().lt(&Amount::from_sat(amount)) {
-        println!("You don't have any funds to deposit into the descriptor's address.");
-        println!("We will wait here for a minute until you hit the Mutinynet faucet");
-        println!(
-            "Please visit https://faucet.mutinynet.com and send some sats to {}",
-            alice_wallet.next_unused_address(KeychainKind::External)
-        );
-        sleep(Duration::from_secs(60)).await;
-    }
-
-    // Get Alice's public key so we can write it into the policy/descriptor
-    let unvault_key = alice_xpub.public_key;
-    println!("alice's unvault_key: {}", unvault_key);
-
     // Create a wallet and keys for bob
     //
     let bob_words = "property blush sun knock heavy animal lens syrup matrix february lava chalk";
@@ -165,33 +152,27 @@ async fn main() {
 
     let external_descriptor = Bip84(bob_xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(bob_xprv.clone(), KeychainKind::Internal);
-    let mut bob_wallet = Wallet::create(external_descriptor, internal_descriptor)
+    let _bob_wallet = Wallet::create(external_descriptor, internal_descriptor)
         .network(Network::Signet)
         .create_wallet(&mut conn)
         .expect("couldn't create wallet");
 
-    if bob_wallet.balance().total().lt(&Amount::from_sat(amount)) {
-        println!("You don't have any funds to deposit into the descriptor's address.");
-        println!("We will wait here for a minute until you hit the Mutinynet faucet");
-        println!(
-            "Please visit https://faucet.mutinynet.com and send some sats to {}",
-            bob_wallet.next_unused_address(KeychainKind::External)
-        );
-        sleep(Duration::from_secs(60)).await;
-    }
+    // Ok, now we have two client, key, and wallet setups. Now let's set up a vault policy.
+
+    // Get Alice's public key so we can write it into the policy/descriptor
+    let unvault_key = alice_xpub.public_key;
+    println!("\nalice's unvault_key: {}", unvault_key);
 
     // Get Bob's public key so we can write it into the policy/descriptor
     let emergency_key = bob_xpub.public_key;
     println!("bob's emergency_key: {}", emergency_key);
-
-    // Ok, now we have two client, key, and wallet setups. Now let's set up a vault policy.
 
     // We don't want our "after" variable to change all the time, hardcode it for the moment.
     // TODO: change this once the vault lock is working.
     let after = 1311208 + 10000;
 
     // Format out the simplest possible policy
-    let policy_str = format!("or(pk({emergency_key}),and(pk({emergency_key}),after({after})))");
+    let policy_str = format!("or(pk({emergency_key}),and(pk({unvault_key}),after({after})))");
     let policy =
         Concrete::<DefiniteDescriptorKey>::from_str(&policy_str).expect("couldn't create policy");
     println!("Policy is: {}", policy);
@@ -207,6 +188,19 @@ async fn main() {
     println!("Descriptor pubkey script: {:?}", descriptor.script_pubkey());
 
     // Now that we have an address for the descriptor, we can deposit funds into it.
+
+    // Check whether Alice has enough funds. Anyone can lock funds, we will just use Alice's
+    // wallet so we don't need to create yet another one. If alice doesn't have the funds,
+    // pause for 60 seconds so that there's a chance to fund the account.
+    if alice_wallet.balance().total().lt(&Amount::from_sat(amount)) {
+        println!("You don't have any funds to deposit into the descriptor's address.");
+        println!("We will wait here for a minute until you hit the Mutinynet faucet");
+        println!(
+            "Please visit https://faucet.mutinynet.com and send some sats to Alice at {}",
+            alice_wallet.next_unused_address(KeychainKind::External)
+        );
+        sleep(Duration::from_secs(60)).await;
+    }
 
     // Build a deposit transaction to send funds to the descriptor address. These funds can only be unlocked
     // by a spending transaction that can match the conditions that are in the descriptor.
@@ -315,7 +309,8 @@ async fn main() {
     // Extract the transaction from the psbt
     let spend_tx = psbt.extract_tx().expect("failed to extract tx");
 
-    // Broadcast it to spend!
+    // Broadcast it to spend! This should fail, because although we are using Alice's
+    // key to spend, the timelock has not yet elapsed.
     alice_client
         .broadcast(&spend_tx)
         .await
