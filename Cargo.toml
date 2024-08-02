@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1"
 bdk_esplora = { version = "0.16.0", features = ["async"] }
 bdk_wallet = { version = "1.0.0-beta.1", "features" = [
     "keys-bip39",
@@ -12,5 +11,3 @@ bdk_wallet = { version = "1.0.0-beta.1", "features" = [
     "rusqlite",
 ] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
-tracing = "0.1.40"
-tracing-subscriber = "0.3.18"

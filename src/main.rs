@@ -38,7 +38,7 @@ pub(crate) async fn sync(
     client: &esplora_client::AsyncClient,
     wallet: &mut Persisted<Wallet>,
     conn: &mut rusqlite::Connection,
-) -> anyhow::Result<()> {
+) {
     println!("Syncing...");
 
     let request = wallet.start_full_scan().inspect_spks_for_all_keychains({
@@ -54,14 +54,15 @@ pub(crate) async fn sync(
 
     let mut update = client
         .full_scan(request, STOP_GAP, PARALLEL_REQUESTS)
-        .await?;
+        .await
+        .expect("full scan problem");
     let now = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
     let _ = update.graph_update.update_last_seen_unconfirmed(now);
 
-    wallet.apply_update(update)?;
-    wallet.persist(conn)?;
-
-    Ok(())
+    wallet
+        .apply_update(update)
+        .expect("couldn't apply wallet update");
+    wallet.persist(conn).expect("couldn't persist wallet");
 }
 
 // Find the OutPoint by spk, useful for ensuring that we grab the right
@@ -115,9 +116,7 @@ async fn main() {
         .expect("couldn't create wallet");
 
     // Sync the client and wallet
-    sync(&client, &mut wallet, &mut conn)
-        .await
-        .expect("client sync failed");
+    sync(&client, &mut wallet, &mut conn).await;
 
     // Get Alice's public key so we can write it into the policy/descriptor
     let alice_pk = xpub.public_key;
