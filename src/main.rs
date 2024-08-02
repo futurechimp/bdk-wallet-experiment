@@ -1,4 +1,7 @@
-use bdk_wallet::{bitcoin::absolute::LockTime, miniscript::psbt::PsbtInputExt};
+use bdk_wallet::{
+    bitcoin::{absolute::LockTime, EcdsaSighashType},
+    miniscript::psbt::PsbtInputExt,
+};
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::Write,
@@ -151,6 +154,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Sleep for 30 seconds to ensure Mutiny mines a block - it has a 30 second block time.
+    println!("Sleeping for 30 seconds while we wait for our deposit transaction to be mined");
     sleep(Duration::from_secs(30)).await;
 
     // At this point, we've got a very simple policy `pk({alice_pk})`, into which we've inserted
@@ -201,7 +205,7 @@ async fn main() -> anyhow::Result<()> {
     // Generating signatures & witness data
     let mut input = psbt::Input::default();
 
-    // Killer problem: uncommenting the input update causes compile-time error.
+    // Killer problem: uncommenting `input.update_with_descriptor_unchecked()` causes a compile-time error.
     // The psbt input wants a Descriptor<DefiniteDescriptorKey> rather than
     // a Descriptor<PublicKey>. However switching descriptor types gets other errors I'm not sure
     // how to code around.
@@ -213,22 +217,22 @@ async fn main() -> anyhow::Result<()> {
 
     let mut sighash_cache = SighashCache::new(&psbt.unsigned_tx);
 
+    // Killer problem: this blows up at runtime with `MissingWitnessScript`,
+    // presumably because the input was not updated with the descriptor
+    // (see above).
     let msg = psbt
         .sighash_msg(0, &mut sighash_cache, None)
         .unwrap()
         .to_secp_msg();
 
-    // Fixme: Take a parameter
-    let hash_ty = bitcoin::sighash::EcdsaSighashType::All;
-
-    // Since the above is not working, let's try signing with the alice key
+    // Sign with Alice's private key
     let alice_sig = secp.sign_ecdsa(&msg, &xprv.private_key);
 
     psbt.inputs[0].partial_sigs.insert(
         xpub.public_key.into(),
         bitcoin::ecdsa::Signature {
             signature: alice_sig,
-            sighash_type: hash_ty,
+            sighash_type: EcdsaSighashType::All,
         },
     );
 
