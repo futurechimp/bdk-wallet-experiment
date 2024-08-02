@@ -135,7 +135,7 @@ async fn main() {
     assert!(descriptor.sanity_check().is_ok());
     println!("Descriptor pubkey script: {:?}", descriptor.script_pubkey());
     println!(
-        "Descriptor address: {}",
+        "Descriptor address: https://mutinynet.com/address/{}",
         descriptor.address(Network::Signet).unwrap()
     );
 
@@ -223,10 +223,6 @@ async fn main() {
     psbt.outputs.push(psbt::Output::default());
 
     let mut sighash_cache = SighashCache::new(&psbt.unsigned_tx);
-
-    // Killer problem: this blows up at runtime with `MissingWitnessScript`,
-    // presumably because the input was not updated with the descriptor
-    // (see above).
     let msg = psbt
         .sighash_msg(0, &mut sighash_cache, None)
         .unwrap()
