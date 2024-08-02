@@ -232,7 +232,7 @@ async fn main() {
         .expect("problem broadcasting deposit tx");
 
     println!(
-        "depo tx is at: https://mutinynet.com/tx/{}",
+        "Deposit tx is at: https://mutinynet.com/tx/{}",
         deposit_tx.compute_txid()
     );
 
@@ -240,18 +240,26 @@ async fn main() {
     println!("Sleeping for 30 seconds while we wait for our deposit transaction to be mined");
     sleep(Duration::from_secs(30)).await;
 
-    // At this point, we've got a very simple policy `pk({alice_pk})`, into which we've inserted
-    // Alice's public key, turned into a descriptor, and generated an address. We have sent sats
-    // into the generated address. How do we transfer the sats back out?
+    // At this point, we've got a policy `or(pk({emergency_key}),and(pk({unvault_key}),after({after})))`,
+    // into which we've inserted Alice's unvault_key, Bob's emergency_key. We have turned it into a descriptor,
+    // and generated an address. We have sent sats into the generated address.
+    //
+    // How do we transfer the sats back out?
     //
     // The only place I have seen code which attempts to spend locked funds is at
     // https://github.com/rust-bitcoin/rust-miniscript/blob/master/examples/psbt_sign_finalize.rs
     // so the code below is largely copied from there. I have tried to boil it down to the simplest
     // possible descriptor.
 
+    // First, we need to get the output from the deposit transaction that we want to spend,
+    // so we can reference it in the spending transaction.
+    let (previous_output, witness_utxo) = get_vout(&deposit_tx, &descriptor.script_pubkey());
+
+    // Next, we need to build a spending transaction that can unlock the funds. This transaction
+    // starts out blank.
     let spend_tx = Transaction {
         version: transaction::Version::TWO,
-        lock_time: LockTime::ZERO,
+        lock_time: LockTime::ZERO, // I assume the lock time will be set by the policy / plan later
         input: vec![],
         output: vec![],
     };
@@ -266,20 +274,27 @@ async fn main() {
         outputs: vec![],
     };
 
-    let (outpoint, witness_utxo) = get_vout(&deposit_tx, &descriptor.script_pubkey());
+    println!(
+        "previous_output from deposit transaction is: {}",
+        previous_output
+    );
 
+    // Format an input containing the previous output
     let txin = TxIn {
-        previous_output: outpoint,
+        previous_output,
         ..Default::default()
     };
-    psbt.unsigned_tx.input.push(txin);
 
-    psbt.unsigned_tx.output.push(TxOut {
+    // F
+    let txout = TxOut {
         script_pubkey: alice_wallet
             .next_unused_address(KeychainKind::External)
             .script_pubkey(),
         value: Amount::from_sat(amount - 250),
-    });
+    };
+
+    psbt.unsigned_tx.input.push(txin);
+    psbt.unsigned_tx.output.push(txout);
 
     // Generating signatures & witness data
 
@@ -287,33 +302,50 @@ async fn main() {
     //
     // Our vault policy (and descriptor) is a branching policy, because it has an OR in it.
     // This means that it has multiple spending paths, and we need to specify which one we want
-    // to use.
+    // to use when attempting to spend from it.
     //
     // Rust Miniscript's `plan` module is designed to help with this. Given a descriptor and a set
     // of assets (keys, hash preimages, timelock block heights), the plan module will automatically
     // generate a plan for spending the descriptor.
     //
     // It can also update a PSBT with the necessary spending information.
+
+    // To use the plan module, we first create a set of assets that we have on hand.
+    // In this case, we want to go through the unvault branch of the policy, so we will
+    // feed it Alice's unvault_key and the block height at which the funds can be spent.
     let asset_key = DescriptorPublicKey::from_str(&unvault_key.to_string()).unwrap();
     let assets = Assets::new()
         .add(asset_key)
         .after(LockTime::from_height(after).expect("couldn't convert to locktime"));
 
+    // Automatically generate a plan for spending the descriptor
     let plan = descriptor
         .clone()
         .plan(&assets)
         .expect("couldn't create plan");
 
+    // Create an input where we can put the plan data
     let mut input = psbt::Input::default();
-    input.witness_utxo = Some(witness_utxo.clone());
 
     // Update the input with the generated plan
     plan.update_psbt_input(&mut input);
 
+    // Add the witness_utxo from the deposit transaction to the input
+    input.witness_utxo = Some(witness_utxo.clone());
+
+    // Push the input to the PSBT
     psbt.inputs.push(input);
+
+    // Add a default output to the PSBT
     psbt.outputs.push(psbt::Output::default());
 
-    // Construct our own SighashCache which we can use for signing.
+    // At this point, it seems like we have a PSBT that is ready to be signed.
+    // It contains public data in its inputs, and data which needs to be signed
+    // in its `unsigned_tx.{input, output}s`
+
+    // Sign the PSBT
+
+    // Construct a SighashCache which we can use for signing.
     // TODO: check whether it's possible to use the wallet's internal
     // signing mechanism and get rid of this manually-constructed
     // signing code.
