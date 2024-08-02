@@ -105,8 +105,9 @@ async fn main() {
     let alice_client = esplora_client::Builder::new(ESPLORA_URL)
         .build_async()
         .expect("couldn't build client");
-    let alice_db = format!("alice-{}", DB_PATH);
-    let mut conn = rusqlite::Connection::open(alice_db).expect("couldn't open rusqlite connection");
+
+    let mut conn = rusqlite::Connection::open("alice-bdk-wallet.sqlite")
+        .expect("couldn't open alice's rusqlite connection");
 
     let external_descriptor = Bip84(alice_xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(alice_xprv.clone(), KeychainKind::Internal);
@@ -159,8 +160,8 @@ async fn main() {
         .build_async()
         .expect("couldn't build client");
 
-    let bob_db = format!("bob-{}", DB_PATH);
-    let mut conn = rusqlite::Connection::open(bob_db).expect("couldn't open rusqlite connection");
+    let mut conn = rusqlite::Connection::open("bob-bdk-wallet.sqlite")
+        .expect("couldn't open bob's rusqlite connection");
 
     let external_descriptor = Bip84(bob_xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(bob_xprv.clone(), KeychainKind::Internal);
