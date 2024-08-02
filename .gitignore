@@ -1,2 +1,4 @@
 /target
 /bdk-wallet.sqlite
+/alice-bdk-wallet.sqlite
+/bob-bdk-wallet.sqlite
