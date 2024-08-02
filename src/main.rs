@@ -102,7 +102,6 @@ async fn main() {
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey")
         .into_xpub(Network::Signet, &secp);
-    println!("Alice's xpub: {}", alice_xpub);
 
     // Create an Esplora client
     let alice_client = esplora_client::Builder::new(ESPLORA_URL)
@@ -145,7 +144,6 @@ async fn main() {
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey")
         .into_xpub(Network::Signet, &secp);
-    println!("\nBob's xpub: {}", bob_xpub);
 
     // Create an Esplora client for Bob
     let _bob_client = esplora_client::Builder::new(ESPLORA_URL)
@@ -162,7 +160,7 @@ async fn main() {
         .create_wallet(&mut bob_conn)
         .expect("couldn't create wallet");
 
-    // Ok, now we have two client, key, and wallet setups. Now let's set up a vault policy.
+    // Ok, now we have two clients, keys, and wallets. Let's set up a vault policy.
 
     // Get Alice's public key so we can write it into the policy/descriptor
     let unvault_key = alice_xpub.public_key;
@@ -170,21 +168,23 @@ async fn main() {
 
     // Get Bob's public key so we can write it into the policy/descriptor
     let emergency_key = bob_xpub.public_key;
-    println!("bob's emergency_key: {}", emergency_key);
+    println!("\nbob's emergency_key: {}", emergency_key);
 
     // We don't want our "after" variable to change all the time, hardcode it for the moment.
-    // TODO: change this once the vault lock is working.
+    // TODO: change this once the vault lock is working, after which the script can be made
+    // more dynamic.
     let after = 1311208 + 10000;
 
-    // Format out the simplest possible policy
+    // Format out the vault policy
     let policy_str = format!("or(pk({emergency_key}),and(pk({unvault_key}),after({after})))");
     let policy =
         Concrete::<DefiniteDescriptorKey>::from_str(&policy_str).expect("couldn't create policy");
-    println!("Policy is: {}", policy);
     let descriptor = Descriptor::new_wsh(policy.compile().expect("policy compilation failed"))
         .expect("could not create descriptor");
 
     assert!(descriptor.sanity_check().is_ok());
+    println!("Policy is: {}", policy);
+    println!("Descriptor is: {}", descriptor);
     println!("Descriptors can have an address and their own script_pubkey()");
     println!(
         "Descriptor address: https://mutinynet.com/address/{}",

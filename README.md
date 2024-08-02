@@ -124,7 +124,7 @@ The answer to the mystery is actually pretty simple. The `wshAddress` is a just 
 
 We run the script once, and it asks us to send over some funds from the faucet.
 
-Once we do so, the address has funds in it. Here's the important part: the unlocking conditions *of that address* are *the policy constraints of `wshOutput`. To refresh our memory, that looks like:
+Once we do so, the address has funds in it. Here's the important part: the unlocking conditions *of that address* are *the policy constraints of* `wshOutput`. To refresh our memory, that looks like:
 
 ```ts
 const wshOutput = new Output({
