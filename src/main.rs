@@ -83,7 +83,8 @@ async fn main() {
     // Create a wallet and keys for alice
     //
     let alice_words = "property blush sun knock heavy animal lens syrup matrix february lava chalk";
-    let alice_mnemonic = Mnemonic::parse(alice_words).unwrap();
+    let alice_mnemonic = Mnemonic::parse(alice_words).expect("can't parse alice's mnemonic");
+
     let alice_xkey: ExtendedKey = alice_mnemonic
         .clone()
         .into_extended_key()
@@ -101,29 +102,32 @@ async fn main() {
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey")
         .into_xpub(Network::Signet, &secp);
+    println!("Alice's xpub: {}", alice_xpub);
 
     // Create an Esplora client
     let alice_client = esplora_client::Builder::new(ESPLORA_URL)
         .build_async()
         .expect("couldn't build client");
 
-    let mut conn = rusqlite::Connection::open("alice-bdk-wallet.sqlite")
+    let mut alice_conn = rusqlite::Connection::open("alice-bdk-wallet.sqlite")
         .expect("couldn't open alice's rusqlite connection");
 
     let external_descriptor = Bip84(alice_xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(alice_xprv.clone(), KeychainKind::Internal);
     let mut alice_wallet = Wallet::create(external_descriptor, internal_descriptor)
         .network(Network::Signet)
-        .create_wallet(&mut conn)
+        .create_wallet(&mut alice_conn)
         .expect("couldn't create wallet");
 
     // Sync Alice's client and wallet
-    sync(&alice_client, &mut alice_wallet, &mut conn).await;
+    sync(&alice_client, &mut alice_wallet, &mut alice_conn).await;
 
     // Create a wallet and keys for bob
     //
-    let bob_words = "property blush sun knock heavy animal lens syrup matrix february lava chalk";
-    let bob_mnemonic = Mnemonic::parse(bob_words).unwrap();
+    let bob_words =
+        "bullet venture draft evidence kitchen transfer rare surround bring left tennis powder";
+    let bob_mnemonic = Mnemonic::parse(bob_words).expect("can't parse bob's mnemonic");
+
     let bob_xkey: ExtendedKey = bob_mnemonic
         .clone()
         .into_extended_key()
@@ -141,20 +145,21 @@ async fn main() {
         .into_extended_key()
         .expect("couldn't turn mnemonic into xkey")
         .into_xpub(Network::Signet, &secp);
+    println!("\nBob's xpub: {}", bob_xpub);
 
     // Create an Esplora client for Bob
     let _bob_client = esplora_client::Builder::new(ESPLORA_URL)
         .build_async()
         .expect("couldn't build client");
 
-    let mut conn = rusqlite::Connection::open("bob-bdk-wallet.sqlite")
+    let mut bob_conn = rusqlite::Connection::open("bob-bdk-wallet.sqlite")
         .expect("couldn't open bob's rusqlite connection");
 
     let external_descriptor = Bip84(bob_xprv.clone(), KeychainKind::External);
     let internal_descriptor = Bip84(bob_xprv.clone(), KeychainKind::Internal);
     let _bob_wallet = Wallet::create(external_descriptor, internal_descriptor)
         .network(Network::Signet)
-        .create_wallet(&mut conn)
+        .create_wallet(&mut bob_conn)
         .expect("couldn't create wallet");
 
     // Ok, now we have two client, key, and wallet setups. Now let's set up a vault policy.
@@ -176,8 +181,8 @@ async fn main() {
     let policy =
         Concrete::<DefiniteDescriptorKey>::from_str(&policy_str).expect("couldn't create policy");
     println!("Policy is: {}", policy);
-    let descriptor =
-        Descriptor::new_wsh(policy.compile().unwrap()).expect("could not create descriptor");
+    let descriptor = Descriptor::new_wsh(policy.compile().expect("policy compilation failed"))
+        .expect("could not create descriptor");
 
     assert!(descriptor.sanity_check().is_ok());
     println!("Descriptors can have an address and their own script_pubkey()");
